@@ -54,8 +54,8 @@ export default function BuyerPage() {
   const filtered = products.filter(p => (selectedCat === 'all' || p.categoryId === selectedCat) && (!search || p.name.includes(search)))
   const cartTotal = cart.reduce((sum, item) => sum + (products.find(p => p.id === item.productId)?.price || 0) * item.quantity, 0)
 
-  const statusColor: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700', confirmed: 'bg-blue-100 text-blue-700', shipped: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500' }
-  const statusLabel: Record<string, string> = { pending: '待确认', confirmed: '已确认', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
+  const statusColor: Record<string, string> = { pending_review: 'bg-orange-100 text-orange-700', pending: 'bg-yellow-100 text-yellow-700', confirmed: 'bg-blue-100 text-blue-700', shipped: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500' }
+  const statusLabel: Record<string, string> = { pending_review: '审核中', pending: '待管理员确认', confirmed: '已确认', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
 
   if (!user) return null
 

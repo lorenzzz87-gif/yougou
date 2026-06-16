@@ -39,7 +39,7 @@ export interface Order {
   salesId?: string
   items: OrderItem[]
   totalAmount: number
-  status: 'pending' | 'confirmed' | 'shipped' | 'completed' | 'cancelled'
+  status: 'pending_review' | 'pending' | 'confirmed' | 'shipped' | 'completed' | 'cancelled'
   createdAt: string
   remark?: string
 }
@@ -53,7 +53,8 @@ export interface OrderItem {
 }
 
 const STATUS_LABELS: Record<Order['status'], string> = {
-  pending: '待确认',
+  pending_review: '待业务员审核',
+  pending: '待管理员确认',
   confirmed: '已确认',
   shipped: '已发货',
   completed: '已完成',
@@ -200,7 +201,7 @@ export const store = {
     await supabase.from('orders').insert({
       id, order_no: orderNo, buyer_id: buyerId, buyer_name: buyerName,
       sales_id: salesId || null, total_amount: totalAmount,
-      status: 'pending', remark: remark || null,
+      status: 'pending_review', remark: remark || null,
     })
     const itemRows = orderItems.map((i, idx) => ({
       id: `oi${Date.now()}${idx}`,
@@ -213,7 +214,7 @@ export const store = {
     }))
     await supabase.from('order_items').insert(itemRows)
     this.clearCart()
-    return { id, orderNo, buyerId, buyerName, salesId, items: orderItems, totalAmount, status: 'pending', createdAt: new Date().toISOString(), remark }
+    return { id, orderNo, buyerId, buyerName, salesId, items: orderItems, totalAmount, status: 'pending_review', createdAt: new Date().toISOString(), remark }
   },
   async updateOrderStatus(id: string, status: Order['status']) {
     await supabase.from('orders').update({ status }).eq('id', id)

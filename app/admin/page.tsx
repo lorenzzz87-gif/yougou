@@ -82,12 +82,14 @@ export default function AdminPage() {
   const filteredProducts = products.filter(p => p.name.includes(search) || p.barcode?.includes(search))
 
   const statusActions: Record<Order['status'], { label: string; next: Order['status'] }[]> = {
+    pending_review: [],
     pending: [{ label: '确认订单', next: 'confirmed' }, { label: '取消', next: 'cancelled' }],
     confirmed: [{ label: '标记发货', next: 'shipped' }],
     shipped: [{ label: '完成', next: 'completed' }],
     completed: [], cancelled: [],
   }
   const statusColor: Record<Order['status'], string> = {
+    pending_review: 'bg-orange-100 text-orange-700',
     pending: 'bg-yellow-100 text-yellow-700', confirmed: 'bg-blue-100 text-blue-700',
     shipped: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500',
   }
@@ -128,8 +130,8 @@ export default function AdminPage() {
 
         {tab === 'orders' && (
           <div className="space-y-3">
-            {orders.length === 0 && <div className="text-center text-gray-400 py-12">暂无订单</div>}
-            {orders.map(order => (
+            {orders.filter(o => o.status !== 'pending_review').length === 0 && <div className="text-center text-gray-400 py-12">暂无订单</div>}
+            {orders.filter(o => o.status !== 'pending_review').map(order => (
               <div key={order.id} className="bg-white rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <div><span className="font-semibold text-gray-800">{order.orderNo}</span><span className="ml-2 text-sm text-gray-400">{order.buyerName}</span></div>
