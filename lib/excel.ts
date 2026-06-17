@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 import { Order, Product, Category } from './store'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -252,9 +253,9 @@ export async function importProductsFromFile(file: File, categories: Category[])
   const results: Omit<Product, 'id'>[] = []
   const errors: string[] = []
 
-  // tl.row is 0-indexed; eachRow rowNum is 1-indexed
-  // data rows start at rowNum=3, so tl.row=2 → rowNum=3 → key = tl.row+1
+  // Extract images: supports both traditional drawings AND WPS/Excel365 cellImages (DISPIMG)
   const imagesByRow: Record<number, string> = {}
+
   function uint8ToBase64(bytes: Uint8Array): string {
     let binary = ''
     const chunk = 8192
@@ -263,18 +264,65 @@ export async function importProductsFromFile(file: File, categories: Category[])
     }
     return btoa(binary)
   }
+
+  // Method 1: traditional exceljs drawing images
   ;(ws.getImages?.() || []).forEach((img: any) => {
-    const tlRow = Math.floor(img.range.tl.row) // 0-indexed
-    const rowNum1indexed = tlRow + 1            // convert to 1-indexed rowNum
+    const rowNum1indexed = Math.floor(img.range.tl.row) + 1
     const imgData = (wb as any).getImage(img.imageId)
     if (imgData?.buffer) {
       try {
         const b64 = uint8ToBase64(new Uint8Array(imgData.buffer))
-        const ext = imgData.extension || 'jpeg'
-        imagesByRow[rowNum1indexed] = `data:image/${ext};base64,${b64}`
-      } catch { /* skip bad image */ }
+        imagesByRow[rowNum1indexed] = `data:image/${imgData.extension || 'jpeg'};base64,${b64}`
+      } catch { /* skip */ }
     }
   })
+
+  // Method 2: WPS/Excel365 cellImages (DISPIMG formula) — parse zip directly
+  try {
+    const zip = await JSZip.loadAsync(buffer)
+
+    // rId → media path
+    const rIdToMedia: Record<string, string> = {}
+    const relsFile = zip.file('xl/_rels/cellimages.xml.rels')
+    if (relsFile) {
+      const relsXml = await relsFile.async('text')
+      for (const m of relsXml.matchAll(/Id="([^"]+)"[^>]+Target="([^"]+)"/g)) {
+        rIdToMedia[m[1]] = m[2]
+      }
+    }
+
+    // imageId name → rId
+    const nameToRId: Record<string, string> = {}
+    const cellImgFile = zip.file('xl/cellimages.xml')
+    if (cellImgFile) {
+      const cellImgXml = await cellImgFile.async('text')
+      for (const block of cellImgXml.matchAll(/<etc:cellImage>([\s\S]*?)<\/etc:cellImage>/g)) {
+        const nameMatch = block[1].match(/name="([^"]+)"/)
+        const embedMatch = block[1].match(/r:embed="([^"]+)"/)
+        if (nameMatch && embedMatch) nameToRId[nameMatch[1]] = embedMatch[1]
+      }
+    }
+
+    // sheet row → imageId via DISPIMG formula
+    const sheetFile = zip.file('xl/worksheets/sheet1.xml') || zip.file('xl/worksheets/sheet2.xml')
+    if (sheetFile && Object.keys(nameToRId).length > 0) {
+      const sheetXml = await sheetFile.async('text')
+      // match: <c r="H3" ...>...<f>..DISPIMG(&quot;ID_xxx&quot;...)
+      for (const m of sheetXml.matchAll(/<c r="[A-Z]+(\d+)"[^>]*>[\s\S]*?DISPIMG\([^"]*(?:&quot;|")([^&"]+)(?:&quot;|")/g)) {
+        const rowNum = parseInt(m[1])
+        const imgId = m[2]
+        const rId = nameToRId[imgId]
+        if (!rId) continue
+        const mediaPath = rIdToMedia[rId]
+        if (!mediaPath) continue
+        const mediaFile = zip.file('xl/' + mediaPath)
+        if (!mediaFile) continue
+        const bytes = await mediaFile.async('uint8array')
+        const ext = mediaPath.endsWith('.png') ? 'png' : 'jpeg'
+        imagesByRow[rowNum] = `data:image/${ext};base64,${uint8ToBase64(bytes)}`
+      }
+    }
+  } catch { /* fallback gracefully */ }
 
   ws.eachRow((row, rowNum) => {
     if (rowNum <= 2) return
