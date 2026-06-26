@@ -27,7 +27,7 @@ export default function Navbar({ user, title, backHref }: NavbarProps) {
               ←
             </button>
           )}
-          <span className="font-bold text-orange-500 text-lg">Yigo</span>
+          <img src="/logo.svg" alt="Yigo" className="h-8 w-auto" />
           <span className="text-gray-300">|</span>
           <span className="text-gray-700 font-medium">{title}</span>
         </div>

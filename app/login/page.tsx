@@ -40,7 +40,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-4xl font-bold text-orange-500 mb-1">Yigo 易购</div>
+          <img src="/logo.svg" alt="Yigo 易购" className="h-16 w-auto mx-auto mb-2" />
           <div className="text-gray-400 text-sm">意大利华人B2B订货平台</div>
         </div>
 
