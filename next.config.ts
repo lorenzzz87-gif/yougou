@@ -5,11 +5,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/pocketmoda',
-        destination: 'https://pocketmoda.vercel.app/pocketmoda',
+        destination: '/pocketmoda/index.html',
       },
       {
         source: '/pocketmoda/:path*',
-        destination: 'https://pocketmoda.vercel.app/pocketmoda/:path*',
+        destination: '/pocketmoda/index.html',
       },
     ]
   },
