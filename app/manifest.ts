@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Yigo 易购 - B2B订货平台',
-    short_name: 'Yigo',
+    short_name: 'Yigo 易购',
     description: '意大利华人B2B订货平台',
     start_url: '/login',
     display: 'standalone',
