@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Yigo 易购 - B2B订货平台",
   description: "Yigo 易购 — 意大利华人B2B订货平台",
+  appleWebApp: { title: "Yigo", capable: true, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -11,6 +12,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#F97316",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
