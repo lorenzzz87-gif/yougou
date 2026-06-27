@@ -9,6 +9,7 @@ const DEMO_ACCOUNTS = [
   { label: '业务员', role: 'salesperson', phone: '13800000004', password: '123456', icon: '💼', color: 'bg-green-50 border-green-200 text-green-700' },
   { label: '商家A', role: 'buyer', phone: '13800000002', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
   { label: '商家B', role: 'buyer', phone: '13800000003', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { label: '商家C', role: 'buyer', phone: '13800000005', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
 ]
 
 export default function LoginPage() {
