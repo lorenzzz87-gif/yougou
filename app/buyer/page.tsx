@@ -22,7 +22,7 @@ export default function BuyerPage() {
     const u = store.getCurrentUser()
     if (!u || u.role !== 'buyer') { router.replace('/login'); return }
     setUser(u)
-    Promise.all([store.getProducts(), store.getCategories(), store.getOrdersByBuyer(u.id)]).then(([p, c, o]) => {
+    Promise.all([store.getProducts(u.wholesalerId), store.getCategories(u.wholesalerId), store.getOrdersByBuyer(u.id)]).then(([p, c, o]) => {
       setProducts(p); setCategories(c); setOrders(o)
     })
   }, [router])
@@ -36,7 +36,7 @@ export default function BuyerPage() {
   async function placeOrder() {
     if (!user || cart.length === 0) return
     setPlacing(true)
-    await store.createOrder(user.id, user.name, cart, products, remark)
+    await store.createOrder(user.id, user.name, cart, products, user.wholesalerId!, remark)
     setCart([])
     setRemark('')
     const o = await store.getOrdersByBuyer(user.id)
@@ -55,7 +55,7 @@ export default function BuyerPage() {
   const cartTotal = cart.reduce((sum, item) => sum + (products.find(p => p.id === item.productId)?.price || 0) * item.quantity, 0)
 
   const statusColor: Record<string, string> = { pending_review: 'bg-orange-100 text-orange-700', pending: 'bg-yellow-100 text-yellow-700', confirmed: 'bg-blue-100 text-blue-700', shipped: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500' }
-  const statusLabel: Record<string, string> = { pending_review: '审核中', pending: '待管理员确认', confirmed: '已确认', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
+  const statusLabel: Record<string, string> = { pending_review: '审核中', pending: '待批发商确认', confirmed: '已确认', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
 
   if (!user) return null
 
@@ -82,7 +82,7 @@ export default function BuyerPage() {
                     <div className="font-medium text-gray-800 text-sm truncate mb-0.5">{p.name}</div>
                     <div className="text-xs text-gray-400 mb-2">库存: {p.stock} {p.unit}</div>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-orange-500">¥{p.price.toFixed(2)}</span>
+                      <span className="font-bold text-orange-500">€{p.price.toFixed(2)}</span>
                       {inCart ? (
                         <div className="flex items-center gap-1">
                           <button onClick={() => updateQty(p.id, inCart.quantity - 1)} className="w-6 h-6 rounded-full bg-orange-100 text-orange-500 font-bold text-sm flex items-center justify-center">-</button>
@@ -115,7 +115,7 @@ export default function BuyerPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-800 truncate">{p.name}</div>
-                          <div className="text-sm text-orange-500">¥{p.price.toFixed(2)} / {p.unit}</div>
+                          <div className="text-sm text-orange-500">€{p.price.toFixed(2)} / {p.unit}</div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center">-</button>
@@ -133,7 +133,7 @@ export default function BuyerPage() {
                 <div className="bg-white rounded-xl p-4 shadow-sm flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-500">合计</div>
-                    <div className="text-xl font-bold text-orange-500">¥{cartTotal.toFixed(2)}</div>
+                    <div className="text-xl font-bold text-orange-500">€{cartTotal.toFixed(2)}</div>
                   </div>
                   <button onClick={placeOrder} disabled={placing} className="px-8 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-60">
                     {placing ? '提交中…' : '提交订单'}
@@ -156,7 +156,7 @@ export default function BuyerPage() {
                 <div className="text-sm text-gray-500 mb-1">{order.items.map(i => `${i.productName}×${i.quantity}`).join('、')}</div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-300">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
-                  <span className="font-bold text-orange-500">¥{order.totalAmount.toFixed(2)}</span>
+                  <span className="font-bold text-orange-500">€{order.totalAmount.toFixed(2)}</span>
                 </div>
               </div>
             ))}

@@ -1,17 +1,28 @@
 import { supabase } from './supabase'
 
-export type Role = 'admin' | 'buyer' | 'salesperson'
+export type Role = 'admin' | 'wholesaler' | 'salesperson' | 'buyer'
 
 export interface User {
   id: string
   name: string
   role: Role
   phone: string
+  wholesalerId?: string
+  commissionRate?: number
+}
+
+export interface Wholesaler {
+  id: string
+  name: string
+  contact?: string
+  status: 'active' | 'suspended'
+  createdAt: string
 }
 
 export interface Category {
   id: string
   name: string
+  wholesalerId?: string
 }
 
 export interface Product {
@@ -24,6 +35,7 @@ export interface Product {
   image?: string
   barcode?: string
   description?: string
+  wholesalerId?: string
 }
 
 export interface CartItem {
@@ -37,6 +49,7 @@ export interface Order {
   buyerId: string
   buyerName: string
   salesId?: string
+  wholesalerId?: string
   items: OrderItem[]
   totalAmount: number
   status: 'pending_review' | 'pending' | 'confirmed' | 'shipped' | 'completed' | 'cancelled'
@@ -54,7 +67,7 @@ export interface OrderItem {
 
 const STATUS_LABELS: Record<Order['status'], string> = {
   pending_review: '待业务员审核',
-  pending: '待管理员确认',
+  pending: '待批发商确认',
   confirmed: '已确认',
   shipped: '已发货',
   completed: '已完成',
@@ -78,7 +91,14 @@ function save(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
-// Map DB row → Product
+function toUser(r: Record<string, any>): User {
+  return {
+    id: r.id, name: r.name, role: r.role as Role, phone: r.phone,
+    wholesalerId: r.wholesaler_id || undefined,
+    commissionRate: r.commission_rate != null ? Number(r.commission_rate) : undefined,
+  }
+}
+
 function toProduct(row: Record<string, unknown>): Product {
   return {
     id: row.id as string,
@@ -90,6 +110,7 @@ function toProduct(row: Record<string, unknown>): Product {
     barcode: row.barcode as string | undefined,
     description: row.description as string | undefined,
     image: row.image as string | undefined,
+    wholesalerId: row.wholesaler_id as string | undefined,
   }
 }
 
@@ -101,42 +122,66 @@ export const store = {
   // Users
   async getUsers(): Promise<User[]> {
     const { data } = await supabase.from('users').select('*')
-    return (data || []).map(r => ({ id: r.id, name: r.name, role: r.role as Role, phone: r.phone }))
+    return (data || []).map(toUser)
   },
   async loginByPhone(phone: string, password: string): Promise<User | null> {
-    const { data } = await supabase.from('users').select('*').eq('phone', phone).eq('password', password).single()
+    const { data } = await supabase.from('users').select('*').eq('phone', phone.trim()).eq('password', password).maybeSingle()
     if (!data) return null
-    return { id: data.id, name: data.name, role: data.role as Role, phone: data.phone }
+    return toUser(data)
   },
-  async registerBuyer(name: string, phone: string, password: string): Promise<{ ok: boolean; msg: string }> {
-    const { data: existing } = await supabase.from('users').select('id').eq('phone', phone).single()
+  async registerBuyer(name: string, phone: string, password: string, wholesalerId: string): Promise<{ ok: boolean; msg: string }> {
+    const { data: existing } = await supabase.from('users').select('id').eq('phone', phone.trim()).maybeSingle()
     if (existing) return { ok: false, msg: '该手机号已注册' }
     const id = `u${Date.now()}`
-    const { error } = await supabase.from('users').insert({ id, name, phone, password, role: 'buyer' })
+    const { error } = await supabase.from('users').insert({ id, name, phone: phone.trim(), password, role: 'buyer', wholesaler_id: wholesalerId })
     if (error) return { ok: false, msg: '注册失败，请重试' }
     return { ok: true, msg: '' }
   },
 
-  // Categories
-  async getCategories(): Promise<Category[]> {
-    const { data } = await supabase.from('categories').select('*')
-    return (data || []).map(r => ({ id: r.id, name: r.name }))
+  // Wholesalers (tenants — managed by platform admin)
+  async getWholesalers(): Promise<Wholesaler[]> {
+    const { data } = await supabase.from('wholesalers').select('*').order('created_at', { ascending: false })
+    return (data || []).map(r => ({ id: r.id, name: r.name, contact: r.contact || undefined, status: (r.status || 'active') as Wholesaler['status'], createdAt: r.created_at }))
   },
-  async addCategory(name: string): Promise<Category> {
-    const cat = { id: `c${Date.now()}`, name }
-    await supabase.from('categories').insert(cat)
-    return cat
+  async addWholesaler(name: string, contact: string, phone: string, password: string): Promise<{ ok: boolean; msg: string }> {
+    const { data: existing } = await supabase.from('users').select('id').eq('phone', phone.trim()).maybeSingle()
+    if (existing) return { ok: false, msg: '该登录手机号已被占用' }
+    const wid = `w${Date.now()}`
+    const { error: e1 } = await supabase.from('wholesalers').insert({ id: wid, name, contact: contact || phone.trim(), status: 'active' })
+    if (e1) return { ok: false, msg: '创建批发商失败' }
+    const uid = `u${Date.now()}`
+    const { error: e2 } = await supabase.from('users').insert({ id: uid, name, role: 'wholesaler', phone: phone.trim(), password, wholesaler_id: wid })
+    if (e2) return { ok: false, msg: '创建登录账号失败' }
+    return { ok: true, msg: '' }
+  },
+  async updateWholesalerStatus(id: string, status: Wholesaler['status']) {
+    await supabase.from('wholesalers').update({ status }).eq('id', id)
   },
 
-  // Products
-  async getProducts(): Promise<Product[]> {
-    const { data } = await supabase.from('products').select('*')
+  // Categories (scoped by wholesaler)
+  async getCategories(wholesalerId?: string): Promise<Category[]> {
+    let q = supabase.from('categories').select('*')
+    if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
+    const { data } = await q
+    return (data || []).map(r => ({ id: r.id, name: r.name, wholesalerId: r.wholesaler_id || undefined }))
+  },
+  async addCategory(name: string, wholesalerId: string): Promise<Category> {
+    const cat = { id: `c${Date.now()}`, name, wholesaler_id: wholesalerId }
+    await supabase.from('categories').insert(cat)
+    return { id: cat.id, name, wholesalerId }
+  },
+
+  // Products (scoped by wholesaler)
+  async getProducts(wholesalerId?: string): Promise<Product[]> {
+    let q = supabase.from('products').select('*')
+    if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
+    const { data } = await q
     return (data || []).map(toProduct)
   },
-  async addProduct(p: Omit<Product, 'id'>): Promise<Product> {
-    const product = { id: `p${Date.now()}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, barcode: p.barcode, description: p.description, image: p.image }
+  async addProduct(p: Omit<Product, 'id'>, wholesalerId: string): Promise<Product> {
+    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, barcode: p.barcode, description: p.description, image: p.image, wholesaler_id: wholesalerId }
     await supabase.from('products').insert(product)
-    return { ...p, id: product.id }
+    return { ...p, id: product.id, wholesalerId }
   },
   async updateProduct(id: string, updates: Partial<Product>) {
     const row: Record<string, unknown> = {}
@@ -152,10 +197,6 @@ export const store = {
   },
   async deleteProduct(id: string) {
     await supabase.from('products').delete().eq('id', id)
-  },
-  async findByBarcode(barcode: string): Promise<Product | undefined> {
-    const { data } = await supabase.from('products').select('*').eq('barcode', barcode).single()
-    return data ? toProduct(data) : undefined
   },
 
   // Cart (localStorage)
@@ -174,9 +215,11 @@ export const store = {
   },
   clearCart() { save('yg_cart', []) },
 
-  // Orders
-  async getOrders(): Promise<Order[]> {
-    const { data: orders } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
+  // Orders (scoped by wholesaler)
+  async getOrders(wholesalerId?: string): Promise<Order[]> {
+    let q = supabase.from('orders').select('*').order('created_at', { ascending: false })
+    if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
+    const { data: orders } = await q
     if (!orders || orders.length === 0) return []
     const orderIds = orders.map(o => o.id)
     const { data: items } = await supabase.from('order_items').select('*').in('order_id', orderIds)
@@ -186,6 +229,7 @@ export const store = {
       buyerId: o.buyer_id,
       buyerName: o.buyer_name,
       salesId: o.sales_id,
+      wholesalerId: o.wholesaler_id,
       totalAmount: Number(o.total_amount),
       status: o.status as Order['status'],
       createdAt: o.created_at,
@@ -200,10 +244,20 @@ export const store = {
     }))
   },
   async getOrdersByBuyer(buyerId: string): Promise<Order[]> {
-    const all = await this.getOrders()
-    return all.filter(o => o.buyerId === buyerId)
+    const { data: orders } = await supabase.from('orders').select('*').eq('buyer_id', buyerId).order('created_at', { ascending: false })
+    if (!orders || orders.length === 0) return []
+    const orderIds = orders.map(o => o.id)
+    const { data: items } = await supabase.from('order_items').select('*').in('order_id', orderIds)
+    return orders.map(o => ({
+      id: o.id, orderNo: o.order_no, buyerId: o.buyer_id, buyerName: o.buyer_name,
+      salesId: o.sales_id, wholesalerId: o.wholesaler_id, totalAmount: Number(o.total_amount),
+      status: o.status as Order['status'], createdAt: o.created_at, remark: o.remark,
+      items: (items || []).filter(i => i.order_id === o.id).map(i => ({
+        productId: i.product_id, productName: i.product_name, price: Number(i.price), quantity: i.quantity, unit: i.unit,
+      }))
+    }))
   },
-  async createOrder(buyerId: string, buyerName: string, cartItems: CartItem[], products: Product[], remark?: string, salesId?: string): Promise<Order> {
+  async createOrder(buyerId: string, buyerName: string, cartItems: CartItem[], products: Product[], wholesalerId: string, remark?: string, salesId?: string): Promise<Order> {
     const orderItems: OrderItem[] = cartItems.map(item => {
       const p = products.find(p => p.id === item.productId)!
       return { productId: item.productId, productName: p.name, price: p.price, quantity: item.quantity, unit: p.unit }
@@ -213,7 +267,7 @@ export const store = {
     const orderNo = `YG${Date.now()}`
     await supabase.from('orders').insert({
       id, order_no: orderNo, buyer_id: buyerId, buyer_name: buyerName,
-      sales_id: salesId || null, total_amount: totalAmount,
+      sales_id: salesId || null, wholesaler_id: wholesalerId, total_amount: totalAmount,
       status: 'pending_review', remark: remark || null,
     })
     const itemRows = orderItems.map((i, idx) => ({
@@ -227,7 +281,7 @@ export const store = {
     }))
     await supabase.from('order_items').insert(itemRows)
     this.clearCart()
-    return { id, orderNo, buyerId, buyerName, salesId, items: orderItems, totalAmount, status: 'pending_review', createdAt: new Date().toISOString(), remark }
+    return { id, orderNo, buyerId, buyerName, salesId, wholesalerId, items: orderItems, totalAmount, status: 'pending_review', createdAt: new Date().toISOString(), remark }
   },
   async updateOrderStatus(id: string, status: Order['status']) {
     await supabase.from('orders').update({ status }).eq('id', id)

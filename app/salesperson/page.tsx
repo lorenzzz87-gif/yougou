@@ -17,18 +17,20 @@ export default function SalespersonPage() {
   const [toast, setToast] = useState('')
   const [placing, setPlacing] = useState(false)
   const [actioningId, setActioningId] = useState<string | null>(null)
+  const [wid, setWid] = useState('')
 
   useEffect(() => {
     const u = store.getCurrentUser()
     if (!u || u.role !== 'salesperson') { router.replace('/login'); return }
-    setUser(u)
-    loadData()
+    if (!u.wholesalerId) { router.replace('/login'); return }
+    setUser(u); setWid(u.wholesalerId)
+    loadData(u.wholesalerId)
   }, [router])
 
-  async function loadData() {
-    const [o, p, users] = await Promise.all([store.getOrders(), store.getProducts(), store.getUsers()])
+  async function loadData(w: string) {
+    const [o, p, users] = await Promise.all([store.getOrders(w), store.getProducts(w), store.getUsers()])
     setOrders(o); setProducts(p)
-    const b = users.filter(u => u.role === 'buyer')
+    const b = users.filter(u => u.role === 'buyer' && u.wholesalerId === w)
     setBuyers(b); if (b[0]) setSelectedBuyer(b[0].id)
   }
 
@@ -40,18 +42,18 @@ export default function SalespersonPage() {
   async function handleReview(orderId: string, approve: boolean) {
     setActioningId(orderId)
     await store.updateOrderStatus(orderId, approve ? 'pending' : 'cancelled')
-    await loadData()
+    await loadData(wid)
     setActioningId(null)
-    showToast(approve ? '已通过，订单已转交管理员' : '已拒绝该订单')
+    showToast(approve ? '已通过，订单已转交批发商' : '已拒绝该订单')
   }
 
   async function placeOrderForBuyer() {
     if (!selectedBuyer || cart.length === 0 || !user) return
     const buyer = buyers.find(b => b.id === selectedBuyer)!
     setPlacing(true)
-    await store.createOrder(buyer.id, buyer.name, cart, products, '', user.id)
+    await store.createOrder(buyer.id, buyer.name, cart, products, wid, '', user.id)
     setCart([])
-    await loadData()
+    await loadData(wid)
     setTab('review')
     showToast(`已为 ${buyer.name} 下单`)
     setPlacing(false)
@@ -62,6 +64,8 @@ export default function SalespersonPage() {
   const cartTotal = cart.reduce((sum, item) => sum + (products.find(p => p.id === item.productId)?.price || 0) * item.quantity, 0)
   const myOrderCount = orders.filter(o => o.salesId === user?.id).length
   const myRevenue = orders.filter(o => o.salesId === user?.id && !['cancelled', 'pending_review'].includes(o.status)).reduce((s, o) => s + o.totalAmount, 0)
+  const commissionRate = user?.commissionRate || 0
+  const myCommission = myRevenue * commissionRate
 
   const statusColor: Record<string, string> = {
     pending_review: 'bg-orange-100 text-orange-700',
@@ -81,14 +85,18 @@ export default function SalespersonPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-4">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="text-xl font-bold text-blue-600">{myOrderCount}</div>
             <div className="text-gray-400 text-sm">我的订单数</div>
           </div>
           <div className="bg-white rounded-xl p-4 shadow-sm">
-            <div className="text-xl font-bold text-green-600">¥{myRevenue.toFixed(0)}</div>
+            <div className="text-xl font-bold text-green-600">€{myRevenue.toFixed(0)}</div>
             <div className="text-gray-400 text-sm">累计销售额</div>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="text-xl font-bold text-orange-500">€{myCommission.toFixed(0)}</div>
+            <div className="text-gray-400 text-sm">我的佣金 ({(commissionRate * 100).toFixed(0)}%)</div>
           </div>
         </div>
 
@@ -117,7 +125,7 @@ export default function SalespersonPage() {
                       {order.items.map((i, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-gray-700">{i.productName} × {i.quantity}{i.unit}</span>
-                          <span className="text-gray-500">¥{(i.price * i.quantity).toFixed(2)}</span>
+                          <span className="text-gray-500">€{(i.price * i.quantity).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
@@ -127,7 +135,7 @@ export default function SalespersonPage() {
                         <span className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
                         {order.remark && <div className="text-xs text-gray-400 mt-0.5">备注：{order.remark}</div>}
                       </div>
-                      <span className="font-bold text-orange-500 text-lg">¥{order.totalAmount.toFixed(2)}</span>
+                      <span className="font-bold text-orange-500 text-lg">€{order.totalAmount.toFixed(2)}</span>
                     </div>
 
                     <div className="flex gap-3">
@@ -143,7 +151,7 @@ export default function SalespersonPage() {
                         disabled={actioningId === order.id}
                         className="flex-1 py-2.5 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 disabled:opacity-50 transition-colors"
                       >
-                        {actioningId === order.id ? '处理中…' : '通过 → 转给管理员'}
+                        {actioningId === order.id ? '处理中…' : '通过 → 转给批发商'}
                       </button>
                     </div>
                   </div>
@@ -177,7 +185,7 @@ export default function SalespersonPage() {
                   <div className="text-sm text-gray-500 mb-2">{order.items.map(i => `${i.productName}×${i.quantity}`).join('、')}</div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-300">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
-                    <span className="font-bold text-orange-500">¥{order.totalAmount.toFixed(2)}</span>
+                    <span className="font-bold text-orange-500">€{order.totalAmount.toFixed(2)}</span>
                   </div>
                   {order.salesId === user.id && <div className="mt-1 text-xs text-green-500">✓ 本人开单</div>}
                 </div>
@@ -201,7 +209,7 @@ export default function SalespersonPage() {
                 return (
                   <div key={p.id} className="bg-white rounded-xl p-3 shadow-sm">
                     <div className="font-medium text-gray-800 text-sm truncate mb-0.5">{p.name}</div>
-                    <div className="text-xs text-gray-400 mb-2">¥{p.price} / {p.unit}</div>
+                    <div className="text-xs text-gray-400 mb-2">€{p.price} / {p.unit}</div>
                     {inCart ? (
                       <div className="flex items-center gap-1">
                         <button onClick={() => updateQty(p.id, inCart.quantity - 1)} className="w-6 h-6 rounded-full bg-gray-100 font-bold text-sm flex items-center justify-center">-</button>
@@ -219,7 +227,7 @@ export default function SalespersonPage() {
               <div className="bg-white rounded-xl p-4 shadow-sm flex items-center justify-between">
                 <div>
                   <div className="text-sm text-gray-500">{cart.length} 种商品</div>
-                  <div className="text-xl font-bold text-orange-500">¥{cartTotal.toFixed(2)}</div>
+                  <div className="text-xl font-bold text-orange-500">€{cartTotal.toFixed(2)}</div>
                 </div>
                 <button onClick={placeOrderForBuyer} disabled={placing} className="px-6 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-60">
                   {placing ? '下单中…' : '代客下单'}

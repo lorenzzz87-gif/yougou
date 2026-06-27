@@ -16,7 +16,7 @@ export default function Navbar({ user, title, backHref }: NavbarProps) {
     router.push('/login')
   }
 
-  const roleLabel: Record<string, string> = { admin: '管理员', buyer: '采购商', salesperson: '业务员' }
+  const roleLabel: Record<string, string> = { admin: '平台管理员', wholesaler: '批发商', buyer: '商家', salesperson: '业务员' }
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">

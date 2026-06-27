@@ -1,13 +1,14 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { store } from '@/lib/store'
+import { store, Wholesaler } from '@/lib/store'
 
 const DEMO_ACCOUNTS = [
-  { label: '管理员', role: 'admin', phone: '13800000001', password: '123456', icon: '👑', color: 'bg-purple-50 border-purple-200 text-purple-700' },
+  { label: '平台管理员', role: 'admin', phone: '13800000001', password: '123456', icon: '👑', color: 'bg-purple-50 border-purple-200 text-purple-700' },
+  { label: '批发商', role: 'wholesaler', phone: '13900000001', password: '123456', icon: '🏬', color: 'bg-amber-50 border-amber-200 text-amber-700' },
   { label: '业务员', role: 'salesperson', phone: '13800000004', password: '123456', icon: '💼', color: 'bg-green-50 border-green-200 text-green-700' },
-  { label: '采购商A', role: 'buyer', phone: '13800000002', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-  { label: '采购商B', role: 'buyer', phone: '13800000003', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { label: '商家A', role: 'buyer', phone: '13800000002', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { label: '商家B', role: 'buyer', phone: '13800000003', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
 ]
 
 export default function LoginPage() {
@@ -16,9 +17,19 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('+39 ')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [wholesalers, setWholesalers] = useState<Wholesaler[]>([])
+  const [selectedWholesaler, setSelectedWholesaler] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  useEffect(() => {
+    store.getWholesalers().then(ws => {
+      const active = ws.filter(w => w.status === 'active')
+      setWholesalers(active)
+      if (active[0]) setSelectedWholesaler(active[0].id)
+    })
+  }, [])
 
   async function handleLogin() {
     if (!phone || !password) { setError('请填写手机号和密码'); return }
@@ -34,8 +45,9 @@ export default function LoginPage() {
     if (!name || !phone || !password) { setError('请填写所有字段'); return }
     if (phone.trim().length < 6) { setError('请输入正确的手机号'); return }
     if (password.length < 6) { setError('密码至少6位'); return }
+    if (!selectedWholesaler) { setError('请选择供货批发商'); return }
     setLoading(true); setError('')
-    const result = await store.registerBuyer(name, phone, password)
+    const result = await store.registerBuyer(name, phone, password, selectedWholesaler)
     setLoading(false)
     if (!result.ok) { setError(result.msg); return }
     setSuccess('注册成功！请登录')
@@ -44,7 +56,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 py-8">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <img src="/logo.svg" alt="Yigo 易购" className="h-16 w-auto mx-auto mb-2" />
@@ -55,7 +67,7 @@ export default function LoginPage() {
           {(['login', 'register'] as const).map(t => (
             <button key={t} onClick={() => { setTab(t); setError(''); setSuccess('') }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-white shadow text-orange-500' : 'text-gray-400'}`}>
-              {t === 'login' ? '登录' : '注册'}
+              {t === 'login' ? '登录' : '商家注册'}
             </button>
           ))}
         </div>
@@ -65,11 +77,21 @@ export default function LoginPage() {
 
         <div className="space-y-3">
           {tab === 'register' && (
-            <div>
-              <label className="text-sm text-gray-500 block mb-1">姓名 / 店铺名</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="请输入姓名"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-400" />
-            </div>
+            <>
+              <div>
+                <label className="text-sm text-gray-500 block mb-1">姓名 / 店铺名</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="请输入姓名"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-400" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 block mb-1">供货批发商</label>
+                <select value={selectedWholesaler} onChange={e => setSelectedWholesaler(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-400 bg-white">
+                  {wholesalers.length === 0 && <option value="">暂无可选批发商</option>}
+                  {wholesalers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+            </>
           )}
           <div>
             <label className="text-sm text-gray-500 block mb-1">手机号</label>
@@ -90,7 +112,7 @@ export default function LoginPage() {
 
         {tab === 'login' && (
           <p className="text-center text-xs text-gray-400 mt-4">
-            管理员/业务员账号请联系平台
+            批发商/业务员账号请联系平台开通
           </p>
         )}
 
@@ -102,6 +124,7 @@ export default function LoginPage() {
               <button key={acc.phone} onClick={async () => {
                 const user = await store.loginByPhone(acc.phone, acc.password)
                 if (user) { store.setCurrentUser(user); router.push(`/${user.role}`) }
+                else setError('该测试账号尚未在数据库创建')
               }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all hover:opacity-80 ${acc.color}`}>
                 <span>{acc.icon}</span>
