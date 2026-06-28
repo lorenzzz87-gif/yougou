@@ -12,6 +12,8 @@ export default function B2BLoginPage() {
   const [inviteCode, setInviteCode] = useState('')
   const [inviteTempPwd, setInviteTempPwd] = useState('')
   const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('email')
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -24,13 +26,14 @@ export default function B2BLoginPage() {
     }
     const r = new URLSearchParams(window.location.search).get('role') as 'buyer' | 'wholesaler' | null
     setRoleHint(r)
-    setPhone(r === 'buyer' ? '+39 ' : '')
   }, [router])
 
+  const loginValue = loginMethod === 'email' ? email : phone
+
   async function handleLogin() {
-    if (!phone || !password) { setError('Inserisci telefono e password · 请填写手机号和密码'); return }
+    if (!loginValue || !password) { setError('Inserisci le credenziali · 请填写账号和密码'); return }
     setLoading(true); setError('')
-    const user = await store.loginByPhone(phone, password)
+    const user = await store.loginByPhone(loginValue, password)
     setLoading(false)
     if (!user) { setError('Credenziali errate · 手机号或密码错误'); return }
     store.setCurrentUser(user)
@@ -43,12 +46,13 @@ export default function B2BLoginPage() {
     if (!name || !phone || !password) { setError('Compila tutti i campi · 请填写所有字段'); return }
     if (password.length < 6) { setError('Password minimo 6 caratteri · 密码至少6位'); return }
     if (!inviteCode || !inviteTempPwd) { setError('Inserisci il codice fornitore · 请输入批发商给你的商家号'); return }
+    if (!phone && !email) { setError('手机号或邮箱至少填一个'); return }
     setLoading(true); setError('')
-    const result = await store.registerBuyer(name, phone, password, inviteCode, inviteTempPwd)
+    const result = await store.registerBuyer(name, phone, password, inviteCode, inviteTempPwd, email)
     setLoading(false)
     if (!result.ok) { setError(result.msg); return }
     setSuccess('Registrazione completata! · 注册成功，请登录')
-    setMode('login'); setName(''); setInviteCode(''); setInviteTempPwd('')
+    setMode('login'); setName(''); setInviteCode(''); setInviteTempPwd(''); setEmail('')
   }
 
   const isBuyer = roleHint === 'buyer' || roleHint === null
@@ -149,13 +153,49 @@ export default function B2BLoginPage() {
                 </div>
               )}
 
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1.5">Telefono · 手机号</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} type="tel"
-                  placeholder="+39 ..."
-                  onKeyDown={e => e.key === 'Enter' && mode === 'login' && handleLogin()}
-                  className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition`} />
-              </div>
+              {/* Login: toggle phone / email */}
+              {mode === 'login' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-gray-500">
+                      {loginMethod === 'email' ? 'Email · 邮箱' : 'Telefono · 手机号'}
+                    </label>
+                    <button onClick={() => setLoginMethod(m => m === 'email' ? 'phone' : 'email')}
+                      className={`text-xs ${accentText} hover:opacity-70`}>
+                      {loginMethod === 'email' ? '用手机号登录' : '用邮箱登录'}
+                    </button>
+                  </div>
+                  {loginMethod === 'email' ? (
+                    <input value={email} onChange={e => setEmail(e.target.value)} type="email"
+                      placeholder="name@example.com"
+                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition`} />
+                  ) : (
+                    <input value={phone} onChange={e => setPhone(e.target.value)} type="tel"
+                      placeholder="+39 ..."
+                      onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition`} />
+                  )}
+                </div>
+              )}
+
+              {/* Register: both email and phone */}
+              {mode === 'register' && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Email · 邮箱 <span className="text-gray-300">(推荐)</span></label>
+                    <input value={email} onChange={e => setEmail(e.target.value)} type="email"
+                      placeholder="name@example.com"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Telefono · 手机号 <span className="text-gray-300">(选填)</span></label>
+                    <input value={phone} onChange={e => setPhone(e.target.value)} type="tel"
+                      placeholder="+39 ..."
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition`} />
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1.5">Password · 密码</label>
