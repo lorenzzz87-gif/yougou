@@ -55,13 +55,13 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
 
       ws.eachRow((row, rowNum) => {
         if (rowNum <= 2) return
-        const name    = (row.getCell(1).text || '').trim()
+        const barcode  = (row.getCell(1).text || '').trim()
+        const name     = (row.getCell(2).text || '').trim()
         if (!name) return
-        const priceRaw = row.getCell(2).value
         const unit     = (row.getCell(3).text || '').trim()
-        const stockRaw = row.getCell(4).value
-        const barcode  = (row.getCell(5).text || '').trim()
-        const desc     = (row.getCell(6).text || '').trim()
+        const priceRaw = row.getCell(4).value
+        const desc     = (row.getCell(5).text || '').trim()
+        const stockRaw = row.getCell(6).value
         if (!priceRaw || !unit) { errs.push(`第${rowNum}行 "${name}": 缺少价格或单位`); return }
         // categoryId 留空，由 ZIP 文件夹在 doMatch 阶段填入
         parsed.push({ name, categoryId: '', price: Number(priceRaw), unit, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })

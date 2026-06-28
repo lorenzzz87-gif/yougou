@@ -204,14 +204,14 @@ export async function exportProductTemplate(_categories: Category[]) {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('商品导入', { views: [{ state: 'frozen', ySplit: 2 }] })
 
-  // 分类列已移除 — 分类由 ZIP 图片文件夹名称决定
+  // 列顺序：条码 / 名称 / 单位 / 价格 / 描述 / 库存
   ws.columns = [
-    { key: 'name',    width: 28 },
-    { key: 'price',   width: 12 },
-    { key: 'unit',    width: 10 },
-    { key: 'stock',   width: 10 },
     { key: 'barcode', width: 18 },
+    { key: 'name',    width: 28 },
+    { key: 'unit',    width: 10 },
+    { key: 'price',   width: 12 },
     { key: 'desc',    width: 32 },
+    { key: 'stock',   width: 10 },
   ]
 
   ws.mergeCells('A1:F1')
@@ -222,15 +222,15 @@ export async function exportProductTemplate(_categories: Category[]) {
   t.alignment = { vertical: 'middle', horizontal: 'center' }
   ws.getRow(1).height = 28
 
-  const hr = ws.addRow(['商品名称*', '价格(€)*', '单位*', '库存', '条码*', '描述'])
+  const hr = ws.addRow(['条码*', '商品名称*', '单位*', '价格(€)*', '描述', '库存'])
   styleHeader(hr, 'FF374151')
 
   ;[
-    ['可口可乐 330ml', 0.55, '罐', 500, '6901028001', '经典口味'],
-    ['矿泉水 500ml',   0.30, '瓶', 800, '6901028002', ''],
+    ['6901028001', '可口可乐 330ml', '罐', 0.55, '经典口味', 500],
+    ['6901028002', '矿泉水 500ml',   '瓶', 0.30, '',         800],
   ].forEach(s => {
     const row = ws.addRow(s)
-    row.getCell(2).numFmt = '€0.00'
+    row.getCell(4).numFmt = '€0.00'
     row.height = 22
     row.eachCell(cell => styleCell(cell))
   })
@@ -241,12 +241,12 @@ export async function exportProductTemplate(_categories: Category[]) {
     ['Yigo 批量导入说明'],
     [''],
     ['Excel 列说明（共6列）:'],
-    ['A - 商品名称（必填）'],
-    ['B - 价格，单位欧元（必填）'],
+    ['A - 条码（必填，图片文件名需与此一致）'],
+    ['B - 商品名称（必填）'],
     ['C - 单位，如 瓶/罐/箱/kg（必填）'],
-    ['D - 库存数量'],
-    ['E - 条码（必填，图片文件名需与此一致）'],
-    ['F - 商品描述'],
+    ['D - 价格，单位欧元（必填）'],
+    ['E - 商品描述'],
+    ['F - 库存数量'],
     [''],
     ['图片 ZIP 说明:'],
     ['• 用文件夹名作为分类，如：饮料/6901028001.png'],
