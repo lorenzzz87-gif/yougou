@@ -26,6 +26,8 @@ export default function WholesalerPage() {
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toast, setToast] = useState('')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function WholesalerPage() {
     if (!u.wholesalerId) { router.replace('/login'); return }
     setUser(u); setWid(u.wholesalerId)
     refreshData(u.wholesalerId)
+    store.getWholesalerLogo(u.wholesalerId).then(url => { if (url) setLogoUrl(url) })
   }, [router])
 
   async function refreshData(w: string) {
@@ -42,6 +45,16 @@ export default function WholesalerPage() {
   }
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
+
+  async function handleLogoUpload(file: File) {
+    setUploadingLogo(true)
+    try {
+      const url = await store.uploadWholesalerLogo(wid, file)
+      setLogoUrl(url + '?t=' + Date.now())
+      showToast('Logo 上传成功！')
+    } catch (e: any) { showToast('上传失败: ' + e.message) }
+    setUploadingLogo(false)
+  }
 
   async function generateInvite() {
     setGenerating(true)
@@ -148,7 +161,9 @@ export default function WholesalerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user} title="批发商工作台" />
+      <Navbar user={user} title={uploadingLogo ? '上传中…' : '批发商工作台'}
+        logoUrl={logoUrl || undefined}
+        onLogoUpload={handleLogoUpload} />
       {toast && <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-full z-50 shadow">{toast}</div>}
 
       <div className="max-w-4xl mx-auto px-4 py-6">

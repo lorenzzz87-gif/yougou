@@ -1,5 +1,29 @@
 import { supabase } from './supabase'
 
+// Remove near-white background from an image using canvas (client-side only)
+async function removeWhiteBackground(file: File, tolerance = 40): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width; canvas.height = img.height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0)
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      for (let i = 0; i < d.data.length; i += 4) {
+        const r = d.data[i], g = d.data[i+1], b = d.data[i+2]
+        if (r > 255 - tolerance && g > 255 - tolerance && b > 255 - tolerance) d.data[i+3] = 0
+      }
+      ctx.putImageData(d, 0, 0)
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('处理失败')), 'image/png')
+    }
+    img.onerror = () => reject(new Error('图片加载失败'))
+    img.src = url
+  })
+}
+
 export type Role = 'admin' | 'wholesaler' | 'salesperson' | 'buyer'
 
 export interface User {
@@ -166,6 +190,21 @@ export const store = {
     if (error) return { ok: false, msg: '注册失败，请重试' }
     await supabase.from('invites').update({ used: true, used_by: id }).eq('code', inv.code)
     return { ok: true, msg: '' }
+  },
+
+  // Wholesaler logo — remove white background via canvas, upload to Storage
+  async uploadWholesalerLogo(wholesalerId: string, file: File): Promise<string> {
+    const clean = await removeWhiteBackground(file)
+    const path = `logos/${wholesalerId}.png`
+    const { error } = await supabase.storage.from('product-images').upload(path, clean, { upsert: true, contentType: 'image/png' })
+    if (error) throw new Error('Logo 上传失败: ' + error.message)
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    await supabase.from('wholesalers').update({ logo: data.publicUrl }).eq('id', wholesalerId)
+    return data.publicUrl
+  },
+  async getWholesalerLogo(wholesalerId: string): Promise<string | null> {
+    const { data } = await supabase.from('wholesalers').select('logo').eq('id', wholesalerId).maybeSingle()
+    return data?.logo || null
   },
 
   // Image upload to Supabase Storage (returns public URL)
