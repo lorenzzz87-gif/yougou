@@ -19,6 +19,11 @@ export default function LoginPage() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get('role')
     if (p) setRoleHint(p)
+    // guard: non-b2b host requires gate pass
+    const isB2B = window.location.hostname.startsWith('b2b.')
+    if (!isB2B && !sessionStorage.getItem('yg_gate')) {
+      window.location.replace('/gate')
+    }
   }, [])
   const [phone, setPhone] = useState('+39 ')
   const [password, setPassword] = useState('')

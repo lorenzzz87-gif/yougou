@@ -9,7 +9,10 @@ export default function Home() {
     const isB2BHost = window.location.hostname.startsWith('b2b.')
     const user = store.getCurrentUser()
     if (!user) {
-      router.replace(isB2BHost ? '/entry' : '/login')
+      if (isB2BHost) { router.replace('/entry'); return }
+      // yigo.eu — require gate pass
+      const gated = sessionStorage.getItem('yg_gate')
+      router.replace(gated ? '/login' : '/gate')
       return
     }
     if (user.role === 'buyer') {
