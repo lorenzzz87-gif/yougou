@@ -17,7 +17,9 @@ export default function Navbar({ user, title, backHref, logoUrl, onLogoUpload }:
 
   function logout() {
     store.setCurrentUser(null)
-    router.push('/login')
+    // b2b.yigo.eu is a fully independent entry — keep logout within it, never bounce to the yigo.eu test page
+    const isB2B = typeof window !== 'undefined' && window.location.hostname.startsWith('b2b.')
+    router.push(isB2B ? '/entry' : '/login')
   }
 
   const roleLabel: Record<string, string> = { admin: '平台管理员', wholesaler: '批发商', buyer: '商家', salesperson: '业务员' }
