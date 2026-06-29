@@ -36,6 +36,13 @@ export default function B2BLoginPage() {
     const user = await store.loginByPhone(loginValue, password)
     setLoading(false)
     if (!user) { setError('Credenziali errate · 手机号或密码错误'); return }
+    // Enforce role matches the entry the user picked — a buyer entry must not accept a wholesaler account, and vice versa
+    if (roleHint && user.role !== roleHint) {
+      setError(roleHint === 'buyer'
+        ? '此账号不是商家账号 · Questo account non è un account acquirente'
+        : '此账号不是批发商账号 · Questo account non è un account fornitore')
+      return
+    }
     store.setCurrentUser(user)
     if (user.role === 'buyer') router.push('/b2b')
     else if (user.role === 'wholesaler') router.push('/wholesaler')
