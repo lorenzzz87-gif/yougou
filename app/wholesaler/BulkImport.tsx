@@ -6,6 +6,7 @@ import { exportProductTemplate } from '@/lib/excel'
 import { compressImage, extractZip, barcodeKey, ZipImage } from '@/lib/imageUtils'
 
 interface ParsedRow {
+  sku: string
   name: string
   categoryId: string
   price: number
@@ -55,7 +56,8 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
 
       ws.eachRow((row, rowNum) => {
         if (rowNum <= 2) return
-        // A=编号  B=条形码  C=中文品名  D=西文品名  E=包装数  F=装箱数  G=售价  H=IVA  I=库存
+        // A=编号(图片名)  B=条形码  C=中文品名  D=西文品名  E=包装数  F=装箱数  G=售价  H=IVA  I=库存
+        const sku      = (row.getCell(1).text || '').trim()
         const barcode  = (row.getCell(2).text || '').trim()
         const name     = (row.getCell(3).text || '').trim()
         if (!name) return
@@ -65,7 +67,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         const stockRaw = row.getCell(9).value
         if (!priceRaw || !unit) { errs.push(`第${rowNum}行 "${name}": 缺少售价或包装数`); return }
         // categoryId 留空，由 ZIP 文件夹在 doMatch 阶段填入
-        parsed.push({ name, categoryId: '', price: Number(priceRaw), unit, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })
+        parsed.push({ sku, name, categoryId: '', price: Number(priceRaw), unit, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })
       })
 
       setRows(parsed); setErrors(errs)
@@ -118,11 +120,12 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     }
 
     const matched = await Promise.all(rows.map(async row => {
-      const barcodeK = barcodeKey(row.barcode)
-      const nameK = barcodeKey(row.name)
+      const skuK     = barcodeKey(row.sku)      // 编号优先
+      const barcodeK = barcodeKey(row.barcode)  // 条形码次之
+      const nameK    = barcodeKey(row.name)     // 商品名兜底
       let zipImg: ZipImage | undefined
       for (const [key, zi] of imageMap) {
-        if ((barcodeK && key === barcodeK) || key === nameK) { zipImg = zi; break }
+        if ((skuK && key === skuK) || (barcodeK && key === barcodeK) || key === nameK) { zipImg = zi; break }
       }
 
       // override category from folder if available
@@ -160,7 +163,8 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         let imageUrl: string | undefined
         if (row.imageBlob) {
           try {
-            imageUrl = await store.uploadProductImage(wholesalerId, barcodeKey(row.barcode || row.name) || `p${Date.now()}`, row.imageBlob)
+            const imgKey = barcodeKey(row.sku) || barcodeKey(row.barcode) || barcodeKey(row.name) || `p${Date.now()}`
+          imageUrl = await store.uploadProductImage(wholesalerId, imgKey, row.imageBlob)
           } catch (e: any) { errs.push(`${row.name} 图片上传失败: ${e.message}`) }
         }
         await store.addProduct({ name: row.name, categoryId: row.categoryId, price: row.price, unit: row.unit, stock: row.stock, barcode: row.barcode || undefined, description: row.description, image: imageUrl }, wholesalerId)
