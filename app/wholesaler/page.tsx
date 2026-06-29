@@ -23,7 +23,7 @@ export default function WholesalerPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [showProductForm, setShowProductForm] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | null>(null)
-  const [form, setForm] = useState({ name: '', categoryId: '', price: '', unit: '件', stock: '', barcode: '', description: '', image: '' })
+  const [form, setForm] = useState({ name: '', categoryId: '', price: '', unit: '件', stock: '', barcode: '', description: '', image: '', videoUrl: '' })
   const [imagePreview, setImagePreview] = useState('')
   const [newCatName, setNewCatName] = useState('')
   const [search, setSearch] = useState('')
@@ -91,13 +91,13 @@ export default function WholesalerPage() {
 
   function openAddProduct() {
     setEditProduct(null)
-    setForm({ name: '', categoryId: categories[0]?.id || '', price: '', unit: '件', stock: '', barcode: '', description: '', image: '' })
+    setForm({ name: '', categoryId: categories[0]?.id || '', price: '', unit: '件', stock: '', barcode: '', description: '', image: '', videoUrl: '' })
     setImagePreview(''); setShowProductForm(true)
   }
 
   function openEditProduct(p: Product) {
     setEditProduct(p)
-    setForm({ name: p.name, categoryId: p.categoryId, price: String(p.price), unit: p.unit, stock: String(p.stock), barcode: p.barcode || '', description: p.description || '', image: p.image || '' })
+    setForm({ name: p.name, categoryId: p.categoryId, price: String(p.price), unit: p.unit, stock: String(p.stock), barcode: p.barcode || '', description: p.description || '', image: p.image || '', videoUrl: p.videoUrl || '' })
     setImagePreview(p.image || ''); setShowProductForm(true)
   }
 
@@ -116,7 +116,7 @@ export default function WholesalerPage() {
   async function saveProduct() {
     if (!form.name || !form.price) return
     setSaving(true)
-    const data = { name: form.name, categoryId: form.categoryId, price: parseFloat(form.price), unit: form.unit, stock: parseInt(form.stock) || 0, barcode: form.barcode, description: form.description, image: form.image }
+    const data = { name: form.name, categoryId: form.categoryId, price: parseFloat(form.price), unit: form.unit, stock: parseInt(form.stock) || 0, barcode: form.barcode, description: form.description, image: form.image, videoUrl: form.videoUrl || undefined }
     if (editProduct) await store.updateProduct(editProduct.id, data)
     else await store.addProduct(data, wid)
     setSaving(false); setShowProductForm(false); refreshData(wid)
@@ -435,6 +435,12 @@ export default function WholesalerPage() {
               <div>
                 <label className="text-sm text-gray-500 mb-1 block">条形码</label>
                 <input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-500 mb-1 block">🎬 视频链接（选填）</label>
+                <input value={form.videoUrl} onChange={e => setForm({ ...form, videoUrl: e.target.value })}
+                  placeholder="https://youtube.com/... 或任意视频网址"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
               </div>
             </div>
             <div className="flex gap-3 mt-5">

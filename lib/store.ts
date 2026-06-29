@@ -71,6 +71,7 @@ export interface Product {
   sku?: string
   barcode?: string
   description?: string
+  videoUrl?: string
   wholesalerId?: string
 }
 
@@ -148,6 +149,7 @@ function toProduct(row: Record<string, unknown>): Product {
     barcode: row.barcode as string | undefined,
     description: row.description as string | undefined,
     image: row.image as string | undefined,
+    videoUrl: row.video_url as string | undefined,
     wholesalerId: row.wholesaler_id as string | undefined,
   }
 }
@@ -301,7 +303,7 @@ export const store = {
         return { ...p, id: existing.id, wholesalerId }
       }
     }
-    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description, image: p.image, wholesaler_id: wholesalerId }
+    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description, image: p.image, video_url: p.videoUrl || null, wholesaler_id: wholesalerId }
     await supabase.from('products').insert(product)
     return { ...p, sku, id: product.id, wholesalerId }
   },
@@ -316,6 +318,7 @@ export const store = {
     if (updates.barcode !== undefined) row.barcode = updates.barcode
     if (updates.description !== undefined) row.description = updates.description
     if (updates.image !== undefined) row.image = updates.image
+    if (updates.videoUrl !== undefined) row.video_url = updates.videoUrl
     await supabase.from('products').update(row).eq('id', id)
   },
   async deleteProduct(id: string) {
