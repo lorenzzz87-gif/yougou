@@ -55,14 +55,15 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
 
       ws.eachRow((row, rowNum) => {
         if (rowNum <= 2) return
-        const barcode  = (row.getCell(1).text || '').trim()
-        const name     = (row.getCell(2).text || '').trim()
+        // A=编号  B=条形码  C=中文品名  D=西文品名  E=包装数  F=装箱数  G=售价  H=IVA  I=库存
+        const barcode  = (row.getCell(2).text || '').trim()
+        const name     = (row.getCell(3).text || '').trim()
         if (!name) return
-        const unit     = (row.getCell(3).text || '').trim()
-        const priceRaw = row.getCell(4).value
-        const desc     = (row.getCell(5).text || '').trim()
-        const stockRaw = row.getCell(6).value
-        if (!priceRaw || !unit) { errs.push(`第${rowNum}行 "${name}": 缺少价格或单位`); return }
+        const desc     = (row.getCell(4).text || '').trim()
+        const unit     = (row.getCell(5).text || '').trim()
+        const priceRaw = row.getCell(7).value
+        const stockRaw = row.getCell(9).value
+        if (!priceRaw || !unit) { errs.push(`第${rowNum}行 "${name}": 缺少售价或包装数`); return }
         // categoryId 留空，由 ZIP 文件夹在 doMatch 阶段填入
         parsed.push({ name, categoryId: '', price: Number(priceRaw), unit, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })
       })
