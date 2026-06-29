@@ -16,6 +16,9 @@ export default function WholesalerPage() {
   const [generating, setGenerating] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [productTotal, setProductTotal] = useState(0)
+  const [productPage, setProductPage] = useState(0)
+  const PRODUCT_PAGE_SIZE = 50
   const [categories, setCategories] = useState<Category[]>([])
   const [showProductForm, setShowProductForm] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | null>(null)
@@ -40,8 +43,17 @@ export default function WholesalerPage() {
   }, [router])
 
   async function refreshData(w: string) {
-    const [o, p, c, inv] = await Promise.all([store.getOrders(w), store.getProducts(w), store.getCategories(w), store.getInvites(w)])
-    setOrders(o); setProducts(p); setCategories(c); setInvites(inv)
+    const [o, c, inv] = await Promise.all([store.getOrders(w), store.getCategories(w), store.getInvites(w)])
+    setOrders(o); setCategories(c); setInvites(inv)
+    loadProducts(w, search, 0)
+  }
+
+  async function loadProducts(w: string, q: string, page: number) {
+    const [prods, total] = await Promise.all([
+      store.getProducts(w, q || undefined, PRODUCT_PAGE_SIZE, page * PRODUCT_PAGE_SIZE),
+      store.countProducts(w),
+    ])
+    setProducts(prods); setProductTotal(total); setProductPage(page)
   }
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
@@ -135,7 +147,7 @@ export default function WholesalerPage() {
     setExporting(false)
   }
 
-  const filteredProducts = products.filter(p => p.name.includes(search) || p.barcode?.includes(search))
+  const filteredProducts = products // server-side filtered now
 
   const statusActions: Record<Order['status'], { label: string; next: Order['status'] }[]> = {
     pending_review: [],
@@ -168,7 +180,7 @@ export default function WholesalerPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[{ label: '总订单', value: stats.totalOrders, color: 'text-blue-600' }, { label: '待确认', value: stats.pendingOrders, color: 'text-yellow-600' }, { label: '今日营收', value: `€${stats.todayRevenue.toFixed(2)}`, color: 'text-green-600' }, { label: '商品数', value: stats.totalProducts, color: 'text-purple-600' }].map(s => (
+          {[{ label: '总订单', value: stats.totalOrders, color: 'text-blue-600' }, { label: '待确认', value: stats.pendingOrders, color: 'text-yellow-600' }, { label: '今日营收', value: `€${stats.todayRevenue.toFixed(2)}`, color: 'text-green-600' }, { label: '商品数', value: productTotal, color: 'text-purple-600' }].map(s => (
             <div key={s.label} className="bg-white rounded-xl p-4 shadow-sm">
               <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
               <div className="text-gray-400 text-sm mt-1">{s.label}</div>
@@ -222,9 +234,17 @@ export default function WholesalerPage() {
 
         {tab === 'products' && (
           <div>
-            <div className="flex gap-2 mb-4">
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索商品名或条形码…" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
+            <div className="flex gap-2 mb-3">
+              <input value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loadProducts(wid, search, 0)}
+                placeholder="搜索商品名或条形码，回车确认…"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
+              <button onClick={() => loadProducts(wid, search, 0)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200">搜索</button>
               <button onClick={openAddProduct} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600">+ 添加商品</button>
+            </div>
+            <div className="text-xs text-gray-400 mb-3">
+              共 {productTotal} 个商品，显示第 {productPage * PRODUCT_PAGE_SIZE + 1}–{Math.min((productPage + 1) * PRODUCT_PAGE_SIZE, productTotal)} 条
             </div>
             <div className="space-y-2">
               {filteredProducts.map(p => {
@@ -248,6 +268,17 @@ export default function WholesalerPage() {
                 )
               })}
             </div>
+            {productTotal > PRODUCT_PAGE_SIZE && (
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button disabled={productPage === 0} onClick={() => loadProducts(wid, search, productPage - 1)}
+                  className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">← 上一页</button>
+                <span className="text-sm text-gray-500">
+                  {productPage + 1} / {Math.ceil(productTotal / PRODUCT_PAGE_SIZE)} 页
+                </span>
+                <button disabled={(productPage + 1) * PRODUCT_PAGE_SIZE >= productTotal} onClick={() => loadProducts(wid, search, productPage + 1)}
+                  className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">下一页 →</button>
+              </div>
+            )}
           </div>
         )}
 

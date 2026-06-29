@@ -265,11 +265,18 @@ export const store = {
   },
 
   // Products (scoped by wholesaler)
-  async getProducts(wholesalerId?: string): Promise<Product[]> {
-    let q = supabase.from('products').select('*')
+  async getProducts(wholesalerId?: string, search?: string, limit = 100, offset = 0): Promise<Product[]> {
+    let q = supabase.from('products').select('*').order('name').range(offset, offset + limit - 1)
     if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
+    if (search) q = q.or(`name.ilike.%${search}%,barcode.ilike.%${search}%`)
     const { data } = await q
     return (data || []).map(toProduct)
+  },
+  async countProducts(wholesalerId?: string): Promise<number> {
+    let q = supabase.from('products').select('*', { count: 'exact', head: true })
+    if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
+    const { count } = await q
+    return count || 0
   },
   async addProduct(p: Omit<Product, 'id'>, wholesalerId: string): Promise<Product> {
     const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, barcode: p.barcode, description: p.description, image: p.image, wholesaler_id: wholesalerId }
