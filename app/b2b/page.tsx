@@ -24,10 +24,15 @@ export default function B2BPage() {
   const [lang, setLang] = useState<Lang>('it')
   const [view, setView] = useState<'catalog' | 'orders'>('catalog')
   const [products, setProducts] = useState<Product[]>([])
+  const [productTotal, setProductTotal] = useState(0)
+  const [productPage, setProductPage] = useState(0)
+  const PAGE_SIZE = 60
+  const [cartProductsCache, setCartProductsCache] = useState<Record<string, Product>>({})
   const [categories, setCategories] = useState<Category[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedCat, setSelectedCat] = useState('all')
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [cart, setCart] = useState(store.getCart())
   const [cartOpen, setCartOpen] = useState(false)
   const [remark, setRemark] = useState('')
@@ -42,22 +47,55 @@ export default function B2BPage() {
     setUser(u)
     const savedLang = (typeof window !== 'undefined' && localStorage.getItem('yg_lang')) as Lang | null
     if (savedLang) setLang(savedLang)
-    Promise.all([store.getProducts(u.wholesalerId), store.getCategories(u.wholesalerId), store.getOrdersByBuyer(u.id)]).then(([p, c, o]) => {
-      setProducts(p); setCategories(c); setOrders(o)
+    Promise.all([store.getCategories(u.wholesalerId), store.getOrdersByBuyer(u.id)]).then(([c, o]) => {
+      setCategories(c); setOrders(o)
     })
+    loadProducts(u.wholesalerId, '', 0, undefined)
   }, [router])
+
+  async function loadProducts(wid: string | undefined, q: string, page: number, catId?: string) {
+    const [prods, total] = await Promise.all([
+      store.getProducts(wid, q || undefined, PAGE_SIZE, page * PAGE_SIZE, catId),
+      store.countProducts(wid, catId),
+    ])
+    setProducts(prods); setProductTotal(total); setProductPage(page)
+  }
+
+  function selectCategory(catId: string) {
+    setSelectedCat(catId)
+    setSearch(''); setSearchInput('')
+    loadProducts(user?.wholesalerId, '', 0, catId === 'all' ? undefined : catId)
+  }
+
+  function runSearch() {
+    setSelectedCat('all')
+    setSearch(searchInput)
+    loadProducts(user?.wholesalerId, searchInput, 0, undefined)
+  }
+
+  function goPage(page: number) {
+    loadProducts(user?.wholesalerId, search, page, selectedCat === 'all' ? undefined : selectedCat)
+  }
 
   function switchLang(l: Lang) { setLang(l); localStorage.setItem('yg_lang', l) }
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
   function refreshCart() { setCart(store.getCart()) }
-  function addToCart(id: string) { store.addToCart(id, 1); refreshCart() }
+  function addToCart(id: string) {
+    store.addToCart(id, 1); refreshCart()
+    const p = products.find(p => p.id === id)
+    if (p) setCartProductsCache(prev => ({ ...prev, [id]: p }))
+  }
   function updateQty(id: string, q: number) { store.updateCartItem(id, q); refreshCart() }
+
+  // Cart needs full product info even for items added on a different page — merge cache with current page
+  const productsForCart = { ...cartProductsCache, ...Object.fromEntries(products.map(p => [p.id, p])) }
+  const cartProductList = Object.values(productsForCart)
 
   async function placeOrder() {
     if (!user || cart.length === 0) return
     setPlacing(true)
-    await store.createOrder(user.id, user.name, cart, products, user.wholesalerId!, remark)
-    setCart([]); setRemark(''); setCartOpen(false)
+    await store.createOrder(user.id, user.name, cart, cartProductList, user.wholesalerId!, remark)
+    setCart([]); setRemark(''); setCartOpen(false); setCartProductsCache({})
     const o = await store.getOrdersByBuyer(user.id)
     setOrders(o); setView('orders')
     showToast(t.sent); setPlacing(false)
@@ -65,9 +103,8 @@ export default function B2BPage() {
 
   function logout() { store.setCurrentUser(null); router.push('/login') }
 
-  const filtered = products.filter(p => (selectedCat === 'all' || p.categoryId === selectedCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase())))
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0)
-  const cartTotal = cart.reduce((s, i) => s + (products.find(p => p.id === i.productId)?.price || 0) * i.quantity, 0)
+  const cartTotal = cart.reduce((s, i) => s + (productsForCart[i.productId]?.price || 0) * i.quantity, 0)
 
   if (!user) return null
 
@@ -85,7 +122,9 @@ export default function B2BPage() {
 
           <div className="flex-1 max-w-xl">
             <div className="relative">
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.search}
+              <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && runSearch()}
+                placeholder={t.search}
                 className="w-full bg-gray-100 rounded-full pl-11 pr-4 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-300 transition" />
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
             </div>
@@ -122,12 +161,12 @@ export default function B2BPage() {
             {/* Sidebar categories */}
             <aside className="w-52 shrink-0">
               <div className="bg-white rounded-xl p-2 shadow-sm sticky top-32">
-                <button onClick={() => setSelectedCat('all')}
+                <button onClick={() => selectCategory('all')}
                   className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium mb-0.5 ${selectedCat === 'all' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {t.all}
                 </button>
                 {categories.map(c => (
-                  <button key={c.id} onClick={() => setSelectedCat(c.id)}
+                  <button key={c.id} onClick={() => selectCategory(c.id)}
                     className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium mb-0.5 ${selectedCat === c.id ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                     {c.name}
                   </button>
@@ -137,11 +176,14 @@ export default function B2BPage() {
 
             {/* Product grid */}
             <main className="flex-1">
-              {filtered.length === 0 ? (
+              <div className="text-xs text-gray-400 mb-3">
+                {productTotal} {t.items}，{productPage * PAGE_SIZE + 1}–{Math.min((productPage + 1) * PAGE_SIZE, productTotal)}
+              </div>
+              {products.length === 0 ? (
                 <div className="text-center text-gray-400 py-24">{t.noProducts}</div>
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filtered.map(p => {
+                  {products.map(p => {
                     const inCart = cart.find(i => i.productId === p.id)
                     return (
                       <div key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition flex flex-col">
@@ -170,6 +212,15 @@ export default function B2BPage() {
                       </div>
                     )
                   })}
+                </div>
+              )}
+              {productTotal > PAGE_SIZE && (
+                <div className="flex items-center justify-center gap-3 mt-6">
+                  <button disabled={productPage === 0} onClick={() => goPage(productPage - 1)}
+                    className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">← </button>
+                  <span className="text-sm text-gray-500">{productPage + 1} / {Math.ceil(productTotal / PAGE_SIZE)}</span>
+                  <button disabled={(productPage + 1) * PAGE_SIZE >= productTotal} onClick={() => goPage(productPage + 1)}
+                    className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40"> →</button>
                 </div>
               )}
             </main>
@@ -224,7 +275,7 @@ export default function B2BPage() {
               <>
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
                   {cart.map(item => {
-                    const p = products.find(p => p.id === item.productId)
+                    const p = productsForCart[item.productId]
                     if (!p) return null
                     return (
                       <div key={item.productId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
