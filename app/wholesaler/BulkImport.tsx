@@ -240,18 +240,36 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     }
     const barcodeToId = keyToId
 
+    // Pre-build category map from folder names (auto-create if missing)
+    setImgOnlyMsg('检查分类…')
+    const localCats = [...categories]
+    const folderNames = new Set([...imgOnlyMap.values()].map(zi => zi.category).filter(Boolean) as string[])
+    for (const catName of folderNames) {
+      if (!localCats.find(c => c.name === catName)) {
+        const nc = await store.addCategory(catName, wholesalerId)
+        localCats.push(nc)
+      }
+    }
+    const catNameToId = new Map(localCats.map(c => [c.name, c.id]))
+
     let ok = 0, skipped = 0
     const entries = [...imgOnlyMap.entries()]
     for (let i = 0; i < entries.length; i++) {
       const [key, zi] = entries[i]
       setImgOnlyProgress(Math.round((i / entries.length) * 100))
-      setImgOnlyMsg(`上传图片 ${i + 1}/${entries.length}`)
+      setImgOnlyMsg(`处理 ${i + 1}/${entries.length}`)
       const prodId = barcodeToId.get(key)
       if (!prodId) { skipped++; continue }
       try {
         const compressed = await compressImage(zi.blob)
         const url = await store.uploadProductImage(wholesalerId, key, compressed)
-        await store.updateProduct(prodId, { image: url })
+        // update image + category (from folder name)
+        const updates: Record<string, any> = { image: url }
+        if (zi.category) {
+          const catId = catNameToId.get(zi.category)
+          if (catId) updates.categoryId = catId
+        }
+        await store.updateProduct(prodId, updates)
         ok++
       } catch { skipped++ }
     }
@@ -338,8 +356,8 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
 
           {/* ── 独立图片更新区 ── */}
           <div className="bg-white rounded-xl p-5 shadow-sm border-2 border-dashed border-blue-100">
-            <div className="text-sm font-semibold text-gray-700 mb-1">🖼️ 仅更新已有商品的图片</div>
-            <p className="text-xs text-gray-400 mb-3">图片已导入、只想补充或更换图片时使用。图片文件名 = 编号，自动匹配已有商品。</p>
+            <div className="text-sm font-semibold text-gray-700 mb-1">🖼️ 分批上传图片（自动分配分类）</div>
+            <p className="text-xs text-gray-400 mb-3">先导入 Excel 数据，再分批上传图片。<strong>文件夹名 = 分类</strong>，文件名 = 编号。ZIP 文件夹自动创建分类并分配给商品。每批建议 150-200 张。</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <button onClick={() => zipOnlyRef.current?.click()} disabled={imgOnlyRunning}
                 className="flex flex-col items-center gap-1.5 p-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-sm">
