@@ -46,7 +46,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
   const [parsing, setParsing] = useState(false)
   const [imgOnlyProgress, setImgOnlyProgress] = useState(0)
   const [imgOnlyMsg, setImgOnlyMsg] = useState('')
-  const [imgOnlyDone, setImgOnlyDone] = useState<{ ok: number; skipped: number } | null>(null)
+  const [imgOnlyDone, setImgOnlyDone] = useState<{ ok: number; skipped: number; unmatched: string[] } | null>(null)
   const [imgOnlyRunning, setImgOnlyRunning] = useState(false)
 
   // ── Step 1a: parse Excel — 新列顺序: 名称/价格/单位/库存/条码/描述 (无分类列) ──
@@ -253,13 +253,14 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     const catNameToId = new Map(localCats.map(c => [c.name, c.id]))
 
     let ok = 0, skipped = 0
+    const unmatched: string[] = []
     const entries = [...imgOnlyMap.entries()]
     for (let i = 0; i < entries.length; i++) {
       const [key, zi] = entries[i]
       setImgOnlyProgress(Math.round((i / entries.length) * 100))
       setImgOnlyMsg(`处理 ${i + 1}/${entries.length}`)
       const prodId = barcodeToId.get(key)
-      if (!prodId) { skipped++; continue }
+      if (!prodId) { skipped++; unmatched.push(zi.category ? `${zi.category}/${key}` : key); continue }
       try {
         const compressed = await compressImage(zi.blob)
         const url = await store.uploadProductImage(wholesalerId, key, compressed)
@@ -276,8 +277,18 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
 
     setImgOnlyProgress(100)
     setImgOnlyMsg('完成')
-    setImgOnlyDone({ ok, skipped })
+    setImgOnlyDone({ ok, skipped, unmatched })
     setImgOnlyRunning(false)
+  }
+
+  function downloadUnmatchedList(unmatched: string[]) {
+    const header = '文件名(含分类文件夹)\n'
+    const csv = '﻿' + header + unmatched.join('\n') // BOM for Excel中文兼容
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = '未匹配图片清单.csv'; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   const matchedCount = rows.filter(r => r.matched).length
@@ -391,10 +402,39 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
             )}
 
             {imgOnlyDone && (
-              <div className="bg-green-50 rounded-lg p-3 text-sm">
-                ✅ 更新完成：{imgOnlyDone.ok} 张成功，{imgOnlyDone.skipped} 张未匹配
-                <button onClick={() => { setImgOnlyDone(null); setImgOnlyMap(new Map()) }}
-                  className="ml-3 text-xs text-blue-500 hover:underline">重置</button>
+              <div className="bg-green-50 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-green-800 font-medium">
+                    ✅ 更新完成：{imgOnlyDone.ok} 张成功，{imgOnlyDone.skipped} 张未匹配
+                  </span>
+                  <button onClick={() => { setImgOnlyDone(null); setImgOnlyMap(new Map()) }}
+                    className="text-xs text-blue-600 hover:underline shrink-0">
+                    清空，准备下一批 →
+                  </button>
+                </div>
+
+                {imgOnlyDone.unmatched.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-green-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-600 font-medium">未匹配到商品的图片（{imgOnlyDone.unmatched.length} 个）：</span>
+                      <button onClick={() => downloadUnmatchedList(imgOnlyDone.unmatched)}
+                        className="text-xs text-orange-600 hover:underline shrink-0">
+                        📥 下载未匹配清单
+                      </button>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 max-h-32 overflow-y-auto">
+                      {imgOnlyDone.unmatched.slice(0, 50).map((name, i) => (
+                        <div key={i} className="text-xs text-gray-700 font-mono">{name}</div>
+                      ))}
+                      {imgOnlyDone.unmatched.length > 50 && (
+                        <div className="text-xs text-gray-400 mt-1">…还有 {imgOnlyDone.unmatched.length - 50} 个，请下载清单查看完整列表</div>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1.5">
+                      可能原因：编号填写不一致、商品还未导入、或文件名打错字
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
