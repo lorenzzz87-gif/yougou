@@ -16,7 +16,8 @@ export default function Home() {
       return
     }
     if (user.role === 'buyer') {
-      router.replace(isB2BHost || window.innerWidth >= 1024 ? '/b2b' : '/buyer')
+      // b2b.yigo.eu is the sole independent entry for the desktop B2B portal
+      router.replace(isB2BHost ? '/b2b' : '/buyer')
     } else {
       router.replace(`/${user.role}`)
     }

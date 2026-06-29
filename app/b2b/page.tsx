@@ -113,7 +113,6 @@ export default function B2BPage() {
               {label}
             </button>
           ))}
-          <button onClick={() => router.push('/buyer')} className="ml-auto py-3 text-xs text-gray-400 hover:text-gray-600">📱 {t.mobileVer}</button>
         </div>
       </header>
 

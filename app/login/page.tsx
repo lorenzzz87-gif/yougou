@@ -9,16 +9,14 @@ const DEMO_ACCOUNTS = [
   { label: '业务员', role: 'salesperson', phone: '13800000004', password: '123456', icon: '💼', color: 'bg-green-50 border-green-200 text-green-700' },
   { label: '商家A', role: 'buyer', phone: '13800000002', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
   { label: '商家B', role: 'buyer', phone: '13800000003', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { label: '商家C', role: 'buyer', phone: '13800000005', password: '123456', icon: '🏪', color: 'bg-blue-50 border-blue-200 text-blue-700' },
 ]
 
 export default function LoginPage() {
   const router = useRouter()
-  const [roleHint, setRoleHint] = useState<string | null>(null)
   const [tab, setTab] = useState<'login' | 'register'>('login')
 
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search).get('role')
-    if (p) setRoleHint(p)
     // guard: non-b2b host requires gate pass
     const isB2B = window.location.hostname.startsWith('b2b.')
     if (!isB2B && !sessionStorage.getItem('yg_gate')) {
@@ -35,14 +33,9 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('')
 
   function destFor(role: string) {
-    // role hint from entry page takes priority
-    if (roleHint === 'buyer' && role === 'buyer') return '/b2b'
-    if (roleHint === 'wholesaler' && role === 'wholesaler') return '/wholesaler'
-    // b2b.* subdomain or desktop → B2B portal for buyers
-    if (role === 'buyer' && typeof window !== 'undefined') {
-      const isB2BHost = window.location.hostname.startsWith('b2b.')
-      if (isB2BHost || window.innerWidth >= 1024) return '/b2b'
-    }
+    // b2b.yigo.eu is the sole independent entry for the desktop B2B portal.
+    // yigo.eu (test/admin host) always routes buyers to the mobile portal.
+    if (role === 'buyer' && typeof window !== 'undefined' && window.location.hostname.startsWith('b2b.')) return '/b2b'
     return `/${role}`
   }
 
@@ -75,10 +68,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <img src="/logo.svg" alt="Yigo 易购" className="h-16 w-auto mx-auto mb-2" />
-          {roleHint === 'buyer' && <div className="text-sm font-medium text-orange-500">🏪 Accesso acquirenti · 商家登录</div>}
-          {roleHint === 'wholesaler' && <div className="text-sm font-medium text-amber-600">🏬 Accesso fornitori · 批发商登录</div>}
-          {!roleHint && <div className="text-gray-400 text-sm">意大利华人B2B订货平台</div>}
-          {roleHint && <button onClick={() => router.push('/entry')} className="text-xs text-gray-300 mt-1 hover:text-gray-500">← 返回选择身份</button>}
+          <div className="text-gray-400 text-sm">意大利华人B2B订货平台</div>
         </div>
 
         <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
@@ -149,16 +139,6 @@ export default function LoginPage() {
               </button>
             ))}
           </div>
-
-          <button onClick={async () => {
-            const user = await store.loginByPhone('13800000002', '123456')
-            if (user) { store.setCurrentUser(user); router.push('/b2b') }
-            else setError('该测试账号尚未在数据库创建')
-          }}
-            className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-all">
-            <span>🇮🇹</span>
-            <span>B2B 电脑版入口（意大利语）</span>
-          </button>
         </div>
       </div>
     </div>
