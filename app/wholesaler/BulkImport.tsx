@@ -38,9 +38,16 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
   const excelRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const imgRef = useRef<HTMLInputElement>(null)
+  const imgOnlyRef = useRef<HTMLInputElement>(null)
+  const zipOnlyRef = useRef<HTMLInputElement>(null)
   const [excelFile, setExcelFile] = useState<File | null>(null)
   const [imageMap, setImageMap] = useState<Map<string, ZipImage>>(new Map())
+  const [imgOnlyMap, setImgOnlyMap] = useState<Map<string, ZipImage>>(new Map())
   const [parsing, setParsing] = useState(false)
+  const [imgOnlyProgress, setImgOnlyProgress] = useState(0)
+  const [imgOnlyMsg, setImgOnlyMsg] = useState('')
+  const [imgOnlyDone, setImgOnlyDone] = useState<{ ok: number; skipped: number } | null>(null)
+  const [imgOnlyRunning, setImgOnlyRunning] = useState(false)
 
   // ── Step 1a: parse Excel — 新列顺序: 名称/价格/单位/库存/条码/描述 (无分类列) ──
   async function handleExcel(e: React.ChangeEvent<HTMLInputElement>) {
@@ -179,6 +186,69 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     setStep('done')
   }
 
+  // ── Image-only update: load images, match to existing products, upload ──
+  async function loadImgOnly(e: React.ChangeEvent<HTMLInputElement>, isZip: boolean) {
+    const file = e.target.files?.[0]; if (!file) return
+    setParsing(true)
+    try {
+      let map: Map<string, ZipImage>
+      if (isZip) {
+        map = await extractZip(file)
+      } else {
+        map = new Map()
+        Array.from(e.target.files || []).forEach(f => map.set(barcodeKey(f.name), { blob: f }))
+      }
+      setImgOnlyMap(prev => new Map([...prev, ...map]))
+    } catch { /* ignore */ }
+    setParsing(false)
+    e.target.value = ''
+  }
+
+  async function loadImgOnlyMulti(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    const map = new Map<string, ZipImage>()
+    files.forEach(f => map.set(barcodeKey(f.name), { blob: f }))
+    setImgOnlyMap(prev => new Map([...prev, ...map]))
+    e.target.value = ''
+  }
+
+  async function doImageOnlyUpdate() {
+    if (imgOnlyMap.size === 0) return
+    setImgOnlyRunning(true); setImgOnlyDone(null); setImgOnlyProgress(0)
+
+    // fetch all products for this wholesaler (barcode → id map)
+    setImgOnlyMsg('正在加载商品列表…')
+    const { supabase } = await import('@/lib/supabase')
+    const allProds: { id: string; barcode: string }[] = []
+    for (let off = 0; off < 10000; off += 1000) {
+      const { data } = await supabase.from('products').select('id,barcode').eq('wholesaler_id', wholesalerId).not('barcode','is',null).range(off, off + 999)
+      if (!data || data.length === 0) break
+      allProds.push(...data)
+    }
+    const barcodeToId = new Map(allProds.map(p => [barcodeKey(p.barcode), p.id]))
+
+    let ok = 0, skipped = 0
+    const entries = [...imgOnlyMap.entries()]
+    for (let i = 0; i < entries.length; i++) {
+      const [key, zi] = entries[i]
+      setImgOnlyProgress(Math.round((i / entries.length) * 100))
+      setImgOnlyMsg(`上传图片 ${i + 1}/${entries.length}`)
+      const prodId = barcodeToId.get(key)
+      if (!prodId) { skipped++; continue }
+      try {
+        const compressed = await compressImage(zi.blob)
+        const url = await store.uploadProductImage(wholesalerId, key, compressed)
+        await store.updateProduct(prodId, { image: url })
+        ok++
+      } catch { skipped++ }
+    }
+
+    setImgOnlyProgress(100)
+    setImgOnlyMsg('完成')
+    setImgOnlyDone({ ok, skipped })
+    setImgOnlyRunning(false)
+  }
+
   const matchedCount = rows.filter(r => r.matched).length
 
   return (
@@ -245,19 +315,57 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
           )}
 
           {rows.length > 0 && (
-            <button onClick={doMatch} disabled={parsing}
-              className="w-full py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-60">
-              {parsing ? '处理中…' : `下一步：预览匹配结果（${rows.length} 条商品）`}
-            </button>
+            <div className="flex gap-3">
+              <button onClick={doMatch} disabled={parsing}
+                className="flex-1 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-60">
+                {parsing ? '处理中…' : imageMap.size > 0 ? `导入数据 + 图片（${rows.length} 条）` : `仅导入数据（${rows.length} 条，无图片）`}
+              </button>
+            </div>
           )}
 
-          <div className="bg-blue-50 rounded-xl p-4 text-xs text-blue-700 space-y-1">
-            <div className="font-medium mb-1">📌 操作说明</div>
-            <div>1. 用批发商端「下载导入模板」下载 Excel</div>
-            <div>2. 填写商品信息，<strong>第6列条码</strong>很关键</div>
-            <div>3. 把商品图片改名为对应条码（如 <code className="bg-blue-100 px-1 rounded">8001234567.jpg</code>）</div>
-            <div>4. 上传 Excel + 图片（ZIP 或多选），系统自动配对</div>
-            <div>5. 图片自动压缩到 1200px 高清，体积减 90%+</div>
+          {/* ── 独立图片更新区 ── */}
+          <div className="bg-white rounded-xl p-5 shadow-sm border-2 border-dashed border-blue-100">
+            <div className="text-sm font-semibold text-gray-700 mb-1">🖼️ 仅更新已有商品的图片</div>
+            <p className="text-xs text-gray-400 mb-3">图片已导入、只想补充或更换图片时使用。图片文件名 = 条码，自动匹配已有商品。</p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <button onClick={() => zipOnlyRef.current?.click()} disabled={imgOnlyRunning}
+                className="flex flex-col items-center gap-1.5 p-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-sm">
+                <span className="text-xl">📦</span><span className="text-gray-600">ZIP 图片包</span>
+              </button>
+              <button onClick={() => imgOnlyRef.current?.click()} disabled={imgOnlyRunning}
+                className="flex flex-col items-center gap-1.5 p-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-sm">
+                <span className="text-xl">🖼️</span><span className="text-gray-600">多选图片</span>
+              </button>
+            </div>
+            <input ref={zipOnlyRef} type="file" accept=".zip" className="hidden" onChange={e => loadImgOnly(e, true)} />
+            <input ref={imgOnlyRef} type="file" accept="image/*" multiple className="hidden" onChange={loadImgOnlyMulti} />
+
+            {imgOnlyMap.size > 0 && !imgOnlyDone && (
+              <div className="mb-3">
+                <div className="text-xs text-green-600 mb-2">✓ 已选 {imgOnlyMap.size} 张图片</div>
+                {imgOnlyRunning ? (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1">{imgOnlyMsg}</div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${imgOnlyProgress}%` }} />
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={doImageOnlyUpdate}
+                    className="w-full py-2.5 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600">
+                    开始更新图片
+                  </button>
+                )}
+              </div>
+            )}
+
+            {imgOnlyDone && (
+              <div className="bg-green-50 rounded-lg p-3 text-sm">
+                ✅ 更新完成：{imgOnlyDone.ok} 张成功，{imgOnlyDone.skipped} 张未匹配
+                <button onClick={() => { setImgOnlyDone(null); setImgOnlyMap(new Map()) }}
+                  className="ml-3 text-xs text-blue-500 hover:underline">重置</button>
+              </div>
+            )}
           </div>
         </div>
       )}
