@@ -17,6 +17,7 @@ export default function BuyerPage() {
   const [orders, setOrders] = useState<Awaited<ReturnType<typeof store.getOrders>>>([])
   const [toast, setToast] = useState('')
   const [placing, setPlacing] = useState(false)
+  const [unitPicker, setUnitPicker] = useState<string | null>(null) // productId showing pack/box picker
 
   useEffect(() => {
     const u = store.getCurrentUser()
@@ -29,8 +30,12 @@ export default function BuyerPage() {
 
   function refreshCart() { setCart(store.getCart()) }
 
-  function addToCart(productId: string) { store.addToCart(productId, 1); refreshCart(); showToast('已加入购物车') }
-  function updateQty(productId: string, qty: number) { store.updateCartItem(productId, qty); refreshCart() }
+  function addToCart(productId: string, orderUnit: import('@/lib/store').OrderUnit = 'pack') {
+    store.addToCart(productId, 1, orderUnit); refreshCart()
+    showToast(orderUnit === 'box' ? '已加入购物车（整箱）' : '已加入购物车（中包）')
+    setUnitPicker(null)
+  }
+  function updateQty(productId: string, qty: number, orderUnit: import('@/lib/store').OrderUnit = 'pack') { store.updateCartItem(productId, qty, orderUnit); refreshCart() }
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2000) }
 
   async function placeOrder() {
@@ -52,7 +57,12 @@ export default function BuyerPage() {
   }
 
   const filtered = products.filter(p => (selectedCat === 'all' || p.categoryId === selectedCat) && (!search || p.name.includes(search)))
-  const cartTotal = cart.reduce((sum, item) => sum + (products.find(p => p.id === item.productId)?.price || 0) * item.quantity, 0)
+  const cartTotal = cart.reduce((sum, item) => {
+    const p = products.find(p => p.id === item.productId)
+    if (!p) return sum
+    const unitPrice = item.orderUnit === 'box' && p.boxQty ? p.price * p.boxQty : p.price
+    return sum + unitPrice * item.quantity
+  }, 0)
 
   const statusColor: Record<string, string> = { pending_review: 'bg-orange-100 text-orange-700', pending: 'bg-yellow-100 text-yellow-700', confirmed: 'bg-blue-100 text-blue-700', shipped: 'bg-purple-100 text-purple-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500' }
   const statusLabel: Record<string, string> = { pending_review: '审核中', pending: '待批发商确认', confirmed: '已确认', shipped: '已发货', completed: '已完成', cancelled: '已取消' }
@@ -73,7 +83,9 @@ export default function BuyerPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {filtered.map(p => {
-                const inCart = cart.find(i => i.productId === p.id)
+                const packItem = cart.find(i => i.productId === p.id && i.orderUnit === 'pack')
+                const boxItem  = cart.find(i => i.productId === p.id && i.orderUnit === 'box')
+                const showPicker = unitPicker === p.id
                 return (
                   <div key={p.id} className="bg-white rounded-xl p-3 shadow-sm">
                     <div className="rounded-lg h-28 overflow-hidden bg-orange-50 flex items-center justify-center mb-2">
@@ -86,14 +98,33 @@ export default function BuyerPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-orange-500">€{p.price.toFixed(2)}</span>
-                      {inCart ? (
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => updateQty(p.id, inCart.quantity - 1)} className="w-6 h-6 rounded-full bg-orange-100 text-orange-500 font-bold text-sm flex items-center justify-center">-</button>
-                          <span className="text-sm w-5 text-center">{inCart.quantity}</span>
-                          <button onClick={() => updateQty(p.id, inCart.quantity + 1)} className="w-6 h-6 rounded-full bg-orange-500 text-white font-bold text-sm flex items-center justify-center">+</button>
+                      {(packItem || boxItem) ? (
+                        <div className="flex flex-col gap-1 items-end">
+                          {packItem && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">包</span>
+                              <button onClick={() => updateQty(p.id, packItem.quantity - 1, 'pack')} className="w-6 h-6 rounded-full bg-orange-100 text-orange-500 font-bold text-sm flex items-center justify-center">-</button>
+                              <span className="text-sm w-5 text-center">{packItem.quantity}</span>
+                              <button onClick={() => updateQty(p.id, packItem.quantity + 1, 'pack')} className="w-6 h-6 rounded-full bg-orange-500 text-white font-bold text-sm flex items-center justify-center">+</button>
+                            </div>
+                          )}
+                          {boxItem && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">箱</span>
+                              <button onClick={() => updateQty(p.id, boxItem.quantity - 1, 'box')} className="w-6 h-6 rounded-full bg-orange-100 text-orange-500 font-bold text-sm flex items-center justify-center">-</button>
+                              <span className="text-sm w-5 text-center">{boxItem.quantity}</span>
+                              <button onClick={() => updateQty(p.id, boxItem.quantity + 1, 'box')} className="w-6 h-6 rounded-full bg-orange-500 text-white font-bold text-sm flex items-center justify-center">+</button>
+                            </div>
+                          )}
+                        </div>
+                      ) : showPicker ? (
+                        <div className="flex flex-col gap-1 items-end">
+                          <button onClick={() => addToCart(p.id, 'pack')} className="text-xs px-2 py-1 bg-orange-500 text-white rounded-lg font-medium">中包 {p.unit}</button>
+                          {p.boxQty && <button onClick={() => addToCart(p.id, 'box')} className="text-xs px-2 py-1 bg-orange-700 text-white rounded-lg font-medium">整箱 {p.boxQty}{p.unit}</button>}
+                          <button onClick={() => setUnitPicker(null)} className="text-xs text-gray-400">取消</button>
                         </div>
                       ) : (
-                        <button onClick={() => addToCart(p.id)} className="w-7 h-7 rounded-full bg-orange-500 text-white text-xl flex items-center justify-center hover:bg-orange-600">+</button>
+                        <button onClick={() => p.boxQty ? setUnitPicker(p.id) : addToCart(p.id, 'pack')} className="w-7 h-7 rounded-full bg-orange-500 text-white text-xl flex items-center justify-center hover:bg-orange-600">+</button>
                       )}
                     </div>
                   </div>
@@ -108,22 +139,25 @@ export default function BuyerPage() {
             {cart.length === 0 ? <div className="text-center text-gray-400 py-16">购物车为空，去选购吧！</div> : (
               <>
                 <div className="space-y-3 mb-4">
-                  {cart.map(item => {
+                  {cart.map((item, idx) => {
                     const p = products.find(p => p.id === item.productId)
                     if (!p) return null
+                    const isBox = item.orderUnit === 'box' && p.boxQty
+                    const unitPrice = isBox ? p.price * p.boxQty! : p.price
+                    const unitLabel = isBox ? '箱' : p.unit
                     return (
-                      <div key={item.productId} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3">
+                      <div key={`${item.productId}_${item.orderUnit}_${idx}`} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3">
                         <div className="w-14 h-14 rounded-lg overflow-hidden bg-orange-50 flex items-center justify-center shrink-0">
                           {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-2xl">{productEmoji(p.categoryId)}</span>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-800 truncate">{p.name}</div>
-                          <div className="text-sm text-orange-500">€{p.price.toFixed(2)} / {p.unit}</div>
+                          <div className="text-sm text-orange-500">€{unitPrice.toFixed(2)} / {unitLabel}{isBox && <span className="text-xs text-gray-400 ml-1">({p.boxQty}{p.unit})</span>}</div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center">-</button>
+                          <button onClick={() => updateQty(item.productId, item.quantity - 1, item.orderUnit)} className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center">-</button>
                           <span className="w-6 text-center font-medium">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.productId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center">+</button>
+                          <button onClick={() => updateQty(item.productId, item.quantity + 1, item.orderUnit)} className="w-7 h-7 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center">+</button>
                         </div>
                       </div>
                     )

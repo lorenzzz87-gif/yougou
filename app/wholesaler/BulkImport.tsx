@@ -9,8 +9,10 @@ interface ParsedRow {
   sku: string
   name: string
   categoryId: string
+  categoryName?: string // from Excel column J — fallback when no ZIP folder
   price: number
   unit: string
+  boxQty?: number
   stock: number
   barcode: string
   description?: string
@@ -68,13 +70,16 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         const barcode  = (row.getCell(2).text || '').trim()
         const name     = (row.getCell(3).text || '').trim()
         if (!name) return
-        const desc     = (row.getCell(4).text || '').trim()
-        const unit     = (row.getCell(5).text || '').trim()
-        const priceRaw = row.getCell(7).value
-        const stockRaw = row.getCell(9).value
+        const desc      = (row.getCell(4).text || '').trim()
+        const unit      = (row.getCell(5).text || '').trim()
+        const boxQtyRaw    = row.getCell(6).value
+        const priceRaw     = row.getCell(7).value
+        const stockRaw     = row.getCell(9).value
+        const categoryName = (row.getCell(10).text || '').trim() || undefined
         if (!priceRaw || !unit) { errs.push(`第${rowNum}行 "${name}": 缺少售价或包装数`); return }
-        // categoryId 留空，由 ZIP 文件夹在 doMatch 阶段填入
-        parsed.push({ sku, name, categoryId: '', price: Number(priceRaw), unit, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })
+        const boxQty = boxQtyRaw ? Number(boxQtyRaw) || undefined : undefined
+        // categoryId 留空，由 ZIP 文件夹（优先）或 J 列分类名在 doMatch 阶段填入
+        parsed.push({ sku, name, categoryId: '', categoryName, price: Number(priceRaw), unit, boxQty, stock: Number(stockRaw) || 0, barcode, description: desc || undefined, matched: false })
       })
 
       setRows(parsed); setErrors(errs)
@@ -135,11 +140,19 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         if ((skuK && key === skuK) || (barcodeK && key === barcodeK) || key === nameK) { zipImg = zi; break }
       }
 
-      // override category from folder if available
+      // Category priority: ZIP folder > Excel J column > empty
       let categoryId = row.categoryId
       if (zipImg?.category) {
         const cat = localCats.find(c => c.name === zipImg!.category)
         if (cat) categoryId = cat.id
+      }
+      if (!categoryId && row.categoryName) {
+        let cat = localCats.find(c => c.name === row.categoryName)
+        if (!cat) {
+          cat = await store.addCategory(row.categoryName!, wholesalerId)
+          localCats.push(cat)
+        }
+        categoryId = cat.id
       }
 
       if (zipImg?.blob) {
@@ -176,7 +189,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         }
         // SKU(编号) is primary key; barcode(EAN) is secondary
         await store.addProduct(
-          { name: row.name, categoryId: row.categoryId, price: row.price, unit: row.unit, stock: row.stock, barcode: row.barcode || undefined, description: row.description, image: imageUrl },
+          { name: row.name, categoryId: row.categoryId, price: row.price, unit: row.unit, boxQty: row.boxQty, stock: row.stock, barcode: row.barcode || undefined, description: row.description, image: imageUrl },
           wholesalerId,
           row.sku || undefined  // SKU优先传入，无SKU才用条码
         )

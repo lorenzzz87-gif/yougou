@@ -38,6 +38,7 @@ export default function B2BPage() {
   const [remark, setRemark] = useState('')
   const [placing, setPlacing] = useState(false)
   const [toast, setToast] = useState('')
+  const [unitPicker, setUnitPicker] = useState<string | null>(null)
 
   const t = T[lang]
 
@@ -80,12 +81,13 @@ export default function B2BPage() {
   function switchLang(l: Lang) { setLang(l); localStorage.setItem('yg_lang', l) }
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
   function refreshCart() { setCart(store.getCart()) }
-  function addToCart(id: string) {
-    store.addToCart(id, 1); refreshCart()
+  function addToCart(id: string, orderUnit: import('@/lib/store').OrderUnit = 'pack') {
+    store.addToCart(id, 1, orderUnit); refreshCart()
     const p = products.find(p => p.id === id)
     if (p) setCartProductsCache(prev => ({ ...prev, [id]: p }))
+    setUnitPicker(null)
   }
-  function updateQty(id: string, q: number) { store.updateCartItem(id, q); refreshCart() }
+  function updateQty(id: string, q: number, orderUnit: import('@/lib/store').OrderUnit = 'pack') { store.updateCartItem(id, q, orderUnit); refreshCart() }
 
   // Cart needs full product info even for items added on a different page — merge cache with current page
   const productsForCart = { ...cartProductsCache, ...Object.fromEntries(products.map(p => [p.id, p])) }
@@ -101,10 +103,15 @@ export default function B2BPage() {
     showToast(t.sent); setPlacing(false)
   }
 
-  function logout() { store.setCurrentUser(null); router.push('/login') }
+  function logout() { store.setCurrentUser(null); router.push('/entry') }
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0)
-  const cartTotal = cart.reduce((s, i) => s + (productsForCart[i.productId]?.price || 0) * i.quantity, 0)
+  const cartTotal = cart.reduce((s, i) => {
+    const p = productsForCart[i.productId]
+    if (!p) return s
+    const unitPrice = i.orderUnit === 'box' && p.boxQty ? p.price * p.boxQty : p.price
+    return s + unitPrice * i.quantity
+  }, 0)
 
   if (!user) return null
 
@@ -184,7 +191,9 @@ export default function B2BPage() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {products.map(p => {
-                    const inCart = cart.find(i => i.productId === p.id)
+                    const packItem = cart.find(i => i.productId === p.id && i.orderUnit === 'pack')
+                    const boxItem  = cart.find(i => i.productId === p.id && i.orderUnit === 'box')
+                    const showPicker = unitPicker === p.id
                     return (
                       <div key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition flex flex-col">
                         <div className="h-40 bg-orange-50 flex items-center justify-center">
@@ -198,14 +207,39 @@ export default function B2BPage() {
                           </div>
                           <div className="mt-auto flex items-center justify-between">
                             <span className="font-bold text-orange-500 text-lg">€{p.price.toFixed(2)}</span>
-                            {inCart ? (
-                              <div className="flex items-center gap-1.5">
-                                <button onClick={() => updateQty(p.id, inCart.quantity - 1)} className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center hover:bg-orange-200">−</button>
-                                <span className="w-6 text-center font-medium text-sm">{inCart.quantity}</span>
-                                <button onClick={() => updateQty(p.id, inCart.quantity + 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center hover:bg-orange-600">+</button>
+                            {(packItem || boxItem) ? (
+                              <div className="flex flex-col gap-1 items-end">
+                                {packItem && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-gray-400">{lang === 'it' ? 'Cf' : '包'}</span>
+                                    <button onClick={() => updateQty(p.id, packItem.quantity - 1, 'pack')} className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center hover:bg-orange-200">−</button>
+                                    <span className="w-5 text-center font-medium text-sm">{packItem.quantity}</span>
+                                    <button onClick={() => updateQty(p.id, packItem.quantity + 1, 'pack')} className="w-6 h-6 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center hover:bg-orange-600">+</button>
+                                  </div>
+                                )}
+                                {boxItem && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-gray-400">{lang === 'it' ? 'Cx' : '箱'}</span>
+                                    <button onClick={() => updateQty(p.id, boxItem.quantity - 1, 'box')} className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center hover:bg-orange-200">−</button>
+                                    <span className="w-5 text-center font-medium text-sm">{boxItem.quantity}</span>
+                                    <button onClick={() => updateQty(p.id, boxItem.quantity + 1, 'box')} className="w-6 h-6 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center hover:bg-orange-600">+</button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : showPicker ? (
+                              <div className="flex flex-col gap-1 items-end">
+                                <button onClick={() => addToCart(p.id, 'pack')} className="text-xs px-2 py-1 bg-orange-500 text-white rounded-lg font-medium whitespace-nowrap">
+                                  {lang === 'it' ? `Conf. (${p.unit})` : `中包 ${p.unit}`}
+                                </button>
+                                {p.boxQty && (
+                                  <button onClick={() => addToCart(p.id, 'box')} className="text-xs px-2 py-1 bg-orange-700 text-white rounded-lg font-medium whitespace-nowrap">
+                                    {lang === 'it' ? `Cartone (${p.boxQty} cf)` : `整箱 ${p.boxQty}${p.unit}`}
+                                  </button>
+                                )}
+                                <button onClick={() => setUnitPicker(null)} className="text-xs text-gray-400">✕</button>
                               </div>
                             ) : (
-                              <button onClick={() => addToCart(p.id)} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600">+ {t.addToCart}</button>
+                              <button onClick={() => p.boxQty ? setUnitPicker(p.id) : addToCart(p.id, 'pack')} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600">+ {t.addToCart}</button>
                             )}
                           </div>
                         </div>
@@ -274,22 +308,25 @@ export default function B2BPage() {
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                  {cart.map(item => {
+                  {cart.map((item, idx) => {
                     const p = productsForCart[item.productId]
                     if (!p) return null
+                    const isBox = item.orderUnit === 'box' && p.boxQty
+                    const unitPrice = isBox ? p.price * p.boxQty! : p.price
+                    const unitLabel = isBox ? (lang === 'it' ? 'cartone' : '箱') : (lang === 'it' ? 'cf' : p.unit)
                     return (
-                      <div key={item.productId} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                      <div key={`${item.productId}_${item.orderUnit}_${idx}`} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
                         <div className="w-14 h-14 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0">
                           {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-2xl">📦</span>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-800 text-sm truncate">{p.name}</div>
-                          <div className="text-sm text-orange-500 font-semibold">€{p.price.toFixed(2)}</div>
+                          <div className="text-sm text-orange-500 font-semibold">€{unitPrice.toFixed(2)} / {unitLabel}{isBox && <span className="text-xs text-gray-400 ml-1">({p.boxQty} cf)</span>}</div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => updateQty(item.productId, item.quantity - 1)} className="w-7 h-7 rounded-full bg-gray-200 font-bold flex items-center justify-center">−</button>
+                          <button onClick={() => updateQty(item.productId, item.quantity - 1, item.orderUnit)} className="w-7 h-7 rounded-full bg-gray-200 font-bold flex items-center justify-center">−</button>
                           <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.productId, item.quantity + 1)} className="w-7 h-7 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center">+</button>
+                          <button onClick={() => updateQty(item.productId, item.quantity + 1, item.orderUnit)} className="w-7 h-7 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center">+</button>
                         </div>
                       </div>
                     )

@@ -72,12 +72,16 @@ export interface Product {
   barcode?: string
   description?: string
   videoUrl?: string
+  boxQty?: number // 装箱数：每箱含多少个"包装数"单位
   wholesalerId?: string
 }
+
+export type OrderUnit = 'pack' | 'box'
 
 export interface CartItem {
   productId: string
   quantity: number
+  orderUnit: OrderUnit // 'pack' = 按包装数下单，'box' = 按箱下单
 }
 
 export interface Order {
@@ -100,6 +104,8 @@ export interface OrderItem {
   price: number
   quantity: number
   unit: string
+  orderUnit?: OrderUnit  // 'pack' or 'box' — which unit the quantity refers to
+  boxQty?: number        // snapshot of box size at time of order (for display)
 }
 
 const STATUS_LABELS: Record<Order['status'], string> = {
@@ -150,6 +156,7 @@ function toProduct(row: Record<string, unknown>): Product {
     description: row.description as string | undefined,
     image: row.image as string | undefined,
     videoUrl: row.video_url as string | undefined,
+    boxQty: row.box_qty != null ? Number(row.box_qty) : undefined,
     wholesalerId: row.wholesaler_id as string | undefined,
   }
 }
@@ -289,7 +296,7 @@ export const store = {
     if (sku) {
       const { data: existing } = await supabase.from('products').select('id').eq('wholesaler_id', wholesalerId).eq('sku', sku).maybeSingle()
       if (existing) {
-        const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description, barcode: p.barcode || null }
+        const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description, barcode: p.barcode || null, box_qty: p.boxQty || null }
         if (p.image) upd.image = p.image
         await supabase.from('products').update(upd).eq('id', existing.id)
         return { ...p, sku, id: existing.id, wholesalerId }
@@ -297,13 +304,13 @@ export const store = {
     } else if (p.barcode) {
       const { data: existing } = await supabase.from('products').select('id').eq('wholesaler_id', wholesalerId).eq('barcode', p.barcode).maybeSingle()
       if (existing) {
-        const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description }
+        const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description, box_qty: p.boxQty || null }
         if (p.image) upd.image = p.image
         await supabase.from('products').update(upd).eq('id', existing.id)
         return { ...p, id: existing.id, wholesalerId }
       }
     }
-    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description, image: p.image, video_url: p.videoUrl || null, wholesaler_id: wholesalerId }
+    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description, image: p.image, video_url: p.videoUrl || null, box_qty: p.boxQty || null, wholesaler_id: wholesalerId }
     await supabase.from('products').insert(product)
     return { ...p, sku, id: product.id, wholesalerId }
   },
@@ -319,6 +326,7 @@ export const store = {
     if (updates.description !== undefined) row.description = updates.description
     if (updates.image !== undefined) row.image = updates.image
     if (updates.videoUrl !== undefined) row.video_url = updates.videoUrl
+    if (updates.boxQty !== undefined) row.box_qty = updates.boxQty || null
     await supabase.from('products').update(row).eq('id', id)
   },
   async deleteProduct(id: string) {
@@ -328,16 +336,16 @@ export const store = {
   // Cart (localStorage)
   getCart(): CartItem[] { return load('yg_cart', []) },
   saveCart(cart: CartItem[]) { save('yg_cart', cart) },
-  addToCart(productId: string, quantity: number) {
+  addToCart(productId: string, quantity: number, orderUnit: OrderUnit = 'pack') {
     const cart = this.getCart()
-    const idx = cart.findIndex(i => i.productId === productId)
+    const idx = cart.findIndex(i => i.productId === productId && i.orderUnit === orderUnit)
     if (idx >= 0) cart[idx].quantity += quantity
-    else cart.push({ productId, quantity })
+    else cart.push({ productId, quantity, orderUnit })
     this.saveCart(cart)
   },
-  updateCartItem(productId: string, quantity: number) {
-    if (quantity <= 0) this.saveCart(this.getCart().filter(i => i.productId !== productId))
-    else this.saveCart(this.getCart().map(i => i.productId === productId ? { ...i, quantity } : i))
+  updateCartItem(productId: string, quantity: number, orderUnit: OrderUnit = 'pack') {
+    if (quantity <= 0) this.saveCart(this.getCart().filter(i => !(i.productId === productId && i.orderUnit === orderUnit)))
+    else this.saveCart(this.getCart().map(i => (i.productId === productId && i.orderUnit === orderUnit) ? { ...i, quantity } : i))
   },
   clearCart() { save('yg_cart', []) },
 
@@ -386,7 +394,10 @@ export const store = {
   async createOrder(buyerId: string, buyerName: string, cartItems: CartItem[], products: Product[], wholesalerId: string, remark?: string, salesId?: string): Promise<Order> {
     const orderItems: OrderItem[] = cartItems.map(item => {
       const p = products.find(p => p.id === item.productId)!
-      return { productId: item.productId, productName: p.name, price: p.price, quantity: item.quantity, unit: p.unit }
+      const isBox = item.orderUnit === 'box' && p.boxQty
+      const unitPrice = isBox ? p.price * p.boxQty! : p.price
+      const unitLabel = isBox ? '箱' : p.unit
+      return { productId: item.productId, productName: p.name, price: unitPrice, quantity: item.quantity, unit: unitLabel, orderUnit: item.orderUnit, boxQty: p.boxQty }
     })
     const totalAmount = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
     const id = `o${Date.now()}`
