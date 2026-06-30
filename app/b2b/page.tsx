@@ -41,6 +41,8 @@ export default function B2BPage() {
   const [placing, setPlacing] = useState(false)
   const [toast, setToast] = useState('')
   const [unitPicker, setUnitPicker] = useState<string | null>(null)
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null)
+  const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null)
 
   const t = T[lang]
 
@@ -50,8 +52,8 @@ export default function B2BPage() {
     setUser(u)
     const savedLang = (typeof window !== 'undefined' && localStorage.getItem('yg_lang')) as Lang | null
     if (savedLang) setLang(savedLang)
-    Promise.all([store.getCategories(u.wholesalerId), store.getOrdersByBuyer(u.id)]).then(([c, o]) => {
-      setCategories(c); setOrders(o)
+    Promise.all([store.getCategories(u.wholesalerId), store.getOrdersByBuyer(u.id), store.getWholesalerLogo(u.wholesalerId!)]).then(([c, o, logo]) => {
+      setCategories(c); setOrders(o); if (logo) setWholesalerLogo(logo)
     })
     loadProducts(u.wholesalerId, '', 0, undefined)
   }, [router])
@@ -137,9 +139,10 @@ export default function B2BPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-6">
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <img src="/logo.svg" alt="Yigo" className="h-9 w-auto" />
             <span className="text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-0.5 rounded">B2B</span>
+            {wholesalerLogo && <img src={wholesalerLogo} alt="logo" className="h-8 w-auto max-w-[80px] object-contain border-l border-gray-200 pl-3" />}
           </div>
 
           <div className="flex-1 max-w-xl">
@@ -224,14 +227,14 @@ export default function B2BPage() {
                     const showPicker = unitPicker === p.id
                     return (
                       <div key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition flex flex-col">
-                        <div className="h-40 bg-orange-50 flex items-center justify-center">
-                          {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-5xl">📦</span>}
+                        <div className="w-full aspect-square bg-orange-50 flex items-center justify-center cursor-pointer" onClick={() => setDetailProduct(p)}>
+                          {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-contain" /> : <span className="text-5xl">📦</span>}
                         </div>
                         <div className="p-3 flex flex-col flex-1">
                           <div className="font-medium text-gray-800 text-sm mb-1 line-clamp-2 min-h-[2.5rem]">{p.name}</div>
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             {p.subcategory && <span className="text-xs bg-orange-50 text-orange-500 px-1.5 py-0.5 rounded">{p.subcategory}</span>}
-                            <span className="text-xs text-gray-400">{t.stock}: {p.stock} {p.unit}</span>
+                            <span className="text-xs text-gray-400">{t.stock}: {p.stock} pz</span>
                             {p.videoUrl && <a href={p.videoUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">🎬 Video</a>}
                           </div>
                           <div className="mt-auto flex items-center justify-between">
@@ -258,11 +261,11 @@ export default function B2BPage() {
                             ) : showPicker ? (
                               <div className="flex flex-col gap-1 items-end">
                                 <button onClick={() => addToCart(p.id, 'pack')} className="text-xs px-2 py-1 bg-orange-500 text-white rounded-lg font-medium whitespace-nowrap">
-                                  {lang === 'it' ? `Conf. (${p.unit})` : `中包 ${p.unit}`}
+                                  {lang === 'it' ? `Conf. ${p.unit} pz` : `中包 ${p.unit} pz`}
                                 </button>
                                 {p.boxQty && (
                                   <button onClick={() => addToCart(p.id, 'box')} className="text-xs px-2 py-1 bg-orange-700 text-white rounded-lg font-medium whitespace-nowrap">
-                                    {lang === 'it' ? `Cartone (${p.boxQty} cf)` : `整箱 ${p.boxQty}${p.unit}`}
+                                    {lang === 'it' ? `Cartone ${p.boxQty} pz` : `整箱 ${p.boxQty} pz`}
                                   </button>
                                 )}
                                 <button onClick={() => setUnitPicker(null)} className="text-xs text-gray-400">✕</button>
@@ -321,6 +324,55 @@ export default function B2BPage() {
           </div>
         )}
       </div>
+
+      {/* Product detail modal */}
+      {detailProduct && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setDetailProduct(null)}>
+          <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="relative bg-gray-50 flex items-center justify-center" style={{minHeight: '280px'}}>
+              {detailProduct.image
+                ? <img src={detailProduct.image} alt={detailProduct.name} className="w-full object-contain max-h-72" />
+                : <span className="text-7xl">📦</span>
+              }
+              <button onClick={() => setDetailProduct(null)} className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center text-lg">✕</button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <div className="font-bold text-gray-800 text-xl mb-1">{detailProduct.name}</div>
+              {detailProduct.subcategory && <span className="inline-block text-xs bg-orange-50 text-orange-500 px-2 py-0.5 rounded mb-3">{detailProduct.subcategory}</span>}
+              <div className="text-3xl font-bold text-orange-500 mb-4">€{detailProduct.price.toFixed(2)}</div>
+              <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Conf.' : '中包装'}</div>
+                  <div className="font-semibold">{detailProduct.unit} pz</div>
+                </div>
+                {detailProduct.boxQty && (
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Cartone' : '装箱数'}</div>
+                    <div className="font-semibold">{detailProduct.boxQty} pz</div>
+                  </div>
+                )}
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <div className="text-gray-400 text-xs mb-1">{t.stock}</div>
+                  <div className="font-semibold">{detailProduct.stock} pz</div>
+                </div>
+                {detailProduct.barcode && (
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Codice' : '条形码'}</div>
+                    <div className="font-semibold text-xs">{detailProduct.barcode}</div>
+                  </div>
+                )}
+              </div>
+              {detailProduct.description && <div className="text-sm text-gray-500 mb-4">{detailProduct.description}</div>}
+              {detailProduct.videoUrl && <a href={detailProduct.videoUrl} target="_blank" rel="noreferrer" className="block text-sm text-blue-500 hover:underline mb-4">🎬 {lang === 'it' ? 'Guarda il video' : '查看产品视频'}</a>}
+              <button
+                onClick={() => { detailProduct.boxQty ? setUnitPicker(detailProduct.id) : addToCart(detailProduct.id, 'pack'); setDetailProduct(null) }}
+                className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 text-lg">
+                + {t.addToCart}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cart drawer */}
       {cartOpen && (
