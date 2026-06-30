@@ -225,7 +225,7 @@ export default function BuyerPage() {
                 </div>
                 <div className="text-sm text-gray-500 mb-1">{order.items.map(i => `${i.productName}×${i.quantity}`).join('、')}</div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-300">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
+                  <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
                   <span className="font-bold text-orange-500">€{order.totalAmount.toFixed(2)}</span>
                 </div>
               </div>
@@ -250,23 +250,23 @@ export default function BuyerPage() {
               <div className="text-2xl font-bold text-orange-500 mb-3">€{detailProduct.price.toFixed(2)}</div>
               <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                 <div className="bg-gray-50 rounded-lg p-2">
-                  <div className="text-gray-400 text-xs mb-0.5">中包装</div>
-                  <div className="font-medium">{detailProduct.unit} pz</div>
+                  <div className="text-gray-500 text-xs mb-0.5">中包装</div>
+                  <div className="font-medium text-gray-800">{detailProduct.unit} pz</div>
                 </div>
                 {detailProduct.boxQty && (
                   <div className="bg-gray-50 rounded-lg p-2">
-                    <div className="text-gray-400 text-xs mb-0.5">装箱数</div>
-                    <div className="font-medium">{detailProduct.boxQty} pz</div>
+                    <div className="text-gray-500 text-xs mb-0.5">装箱数</div>
+                    <div className="font-medium text-gray-800">{detailProduct.boxQty} pz</div>
                   </div>
                 )}
                 <div className="bg-gray-50 rounded-lg p-2">
-                  <div className="text-gray-400 text-xs mb-0.5">库存</div>
-                  <div className="font-medium">{detailProduct.stock} pz</div>
+                  <div className="text-gray-500 text-xs mb-0.5">库存</div>
+                  <div className="font-medium text-gray-800">{detailProduct.stock} pz</div>
                 </div>
                 {detailProduct.barcode && (
                   <div className="bg-gray-50 rounded-lg p-2">
-                    <div className="text-gray-400 text-xs mb-0.5">条形码</div>
-                    <div className="font-medium text-xs">{detailProduct.barcode}</div>
+                    <div className="text-gray-500 text-xs mb-0.5">条形码</div>
+                    <div className="font-medium text-gray-800 text-xs">{detailProduct.barcode}</div>
                   </div>
                 )}
               </div>

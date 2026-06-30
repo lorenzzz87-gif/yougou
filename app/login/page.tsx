@@ -125,7 +125,7 @@ export default function LoginPage() {
 
         {/* 测试快速入口 */}
         <div className="mt-6 pt-5 border-t border-gray-100">
-          <p className="text-xs text-gray-300 text-center mb-3">— 测试快速登录 —</p>
+          <p className="text-xs text-gray-500 text-center mb-3">— 测试快速登录 —</p>
           <div className="grid grid-cols-2 gap-2">
             {DEMO_ACCOUNTS.map(acc => (
               <button key={acc.phone} onClick={async () => {

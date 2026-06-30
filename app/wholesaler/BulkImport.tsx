@@ -443,7 +443,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
             {rows.map((row, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
-                  {row.imagePreview ? <img src={row.imagePreview} className="w-full h-full object-cover" alt="" /> : <span className="text-gray-300 text-lg">📦</span>}
+                  {row.imagePreview ? <img src={row.imagePreview} className="w-full h-full object-cover" alt="" /> : <span className="text-gray-400 text-lg">📦</span>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-800 truncate">{row.name}</div>
@@ -451,7 +451,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
                 </div>
                 {row.matched
                   ? <span className="text-xs text-green-500 shrink-0">✓ 有图</span>
-                  : <span className="text-xs text-gray-300 shrink-0">无图</span>}
+                  : <span className="text-xs text-gray-500 shrink-0">无图</span>}
               </div>
             ))}
           </div>

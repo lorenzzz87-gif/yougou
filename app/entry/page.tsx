@@ -65,7 +65,7 @@ export default function EntryPage() {
         </button>
       </div>
 
-      <p className="mt-10 text-xs text-gray-300">
+      <p className="mt-10 text-xs text-gray-500">
         yigo.eu · B2B Italia
       </p>
     </div>

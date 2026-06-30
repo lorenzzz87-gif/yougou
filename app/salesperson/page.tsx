@@ -184,7 +184,7 @@ export default function SalespersonPage() {
                   </div>
                   <div className="text-sm text-gray-500 mb-2">{order.items.map(i => `${i.productName}×${i.quantity}`).join('、')}</div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-300">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
+                    <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('zh-CN')}</span>
                     <span className="font-bold text-orange-500">€{order.totalAmount.toFixed(2)}</span>
                   </div>
                   {order.salesId === user.id && <div className="mt-1 text-xs text-green-500">✓ 本人开单</div>}

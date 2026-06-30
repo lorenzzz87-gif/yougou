@@ -284,7 +284,7 @@ export default function WholesalerPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-800 truncate">{p.name}</div>
                       <div className="text-sm text-gray-400">{cat?.name} · {p.unit} · 库存:{p.stock}</div>
-                      {p.barcode && <div className="text-xs text-gray-300">条码:{p.barcode}</div>}
+                      {p.barcode && <div className="text-xs text-gray-500">条码:{p.barcode}</div>}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="font-bold text-orange-500">€{p.price.toFixed(2)}</span>
@@ -368,7 +368,7 @@ export default function WholesalerPage() {
                       <div key={inv.code} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                         <div>
                           <span className="font-medium text-gray-800 tracking-wider">{inv.code}</span>
-                          <span className="text-gray-300 mx-2">·</span>
+                          <span className="text-gray-400 mx-2">·</span>
                           <span className="text-sm text-gray-500">密码 {inv.tempPassword}</span>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
@@ -421,7 +421,7 @@ export default function WholesalerPage() {
                   <div onClick={() => fileInputRef.current?.click()} className="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
                     <span className="text-3xl mb-1">📷</span>
                     <span className="text-sm text-gray-400">点击上传图片</span>
-                    <span className="text-xs text-gray-300">JPG / PNG，最大 2MB</span>
+                    <span className="text-xs text-gray-500">JPG / PNG，最大 2MB</span>
                   </div>
                 )}
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />

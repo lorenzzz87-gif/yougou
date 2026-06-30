@@ -107,7 +107,7 @@ export default function B2BLoginPage() {
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isBuyer ? 'bg-orange-500/20' : 'bg-amber-500/20'}`}>
                   <div className={`w-2 h-2 rounded-full ${isBuyer ? 'bg-orange-400' : 'bg-amber-400'}`} />
                 </div>
-                <span className="text-gray-300 text-sm">{f}</span>
+                <span className="text-gray-500 text-sm">{f}</span>
               </div>
             ))}
           </div>
@@ -190,13 +190,13 @@ export default function B2BLoginPage() {
               {mode === 'register' && (
                 <>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Email · 邮箱 <span className="text-gray-300">(推荐)</span></label>
+                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Email · 邮箱 <span className="text-gray-500">(推荐)</span></label>
                     <input value={email} onChange={e => setEmail(e.target.value)} type="email"
                       placeholder="name@example.com"
                       className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition text-gray-900 placeholder:text-gray-300`} />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Telefono · 手机号 <span className="text-gray-300">(选填)</span></label>
+                    <label className="text-xs font-medium text-gray-500 block mb-1.5">Telefono · 手机号 <span className="text-gray-500">(选填)</span></label>
                     <input value={phone} onChange={e => setPhone(e.target.value)} type="tel"
                       placeholder="+39 ..."
                       className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 ${accentBorder} transition text-gray-900 placeholder:text-gray-300`} />
@@ -242,7 +242,7 @@ export default function B2BLoginPage() {
               </div>
             )}
 
-            <div className="mt-6 pt-5 border-t border-gray-100 text-center text-xs text-gray-300">
+            <div className="mt-6 pt-5 border-t border-gray-100 text-center text-xs text-gray-500">
               批发商/业务员账号请联系平台开通 · Per account fornitori contattare la piattaforma
             </div>
           </div>

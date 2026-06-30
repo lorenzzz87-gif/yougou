@@ -342,23 +342,23 @@ export default function B2BPage() {
               <div className="text-3xl font-bold text-orange-500 mb-4">€{detailProduct.price.toFixed(2)}</div>
               <div className="grid grid-cols-2 gap-2 text-sm mb-4">
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Conf.' : '中包装'}</div>
-                  <div className="font-semibold">{detailProduct.unit} pz</div>
+                  <div className="text-gray-500 text-xs mb-1">{lang === 'it' ? 'Conf.' : '中包装'}</div>
+                  <div className="font-semibold text-gray-800">{detailProduct.unit} pz</div>
                 </div>
                 {detailProduct.boxQty && (
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Cartone' : '装箱数'}</div>
-                    <div className="font-semibold">{detailProduct.boxQty} pz</div>
+                    <div className="text-gray-500 text-xs mb-1">{lang === 'it' ? 'Cartone' : '装箱数'}</div>
+                    <div className="font-semibold text-gray-800">{detailProduct.boxQty} pz</div>
                   </div>
                 )}
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <div className="text-gray-400 text-xs mb-1">{t.stock}</div>
-                  <div className="font-semibold">{detailProduct.stock} pz</div>
+                  <div className="text-gray-500 text-xs mb-1">{t.stock}</div>
+                  <div className="font-semibold text-gray-800">{detailProduct.stock} pz</div>
                 </div>
                 {detailProduct.barcode && (
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <div className="text-gray-400 text-xs mb-1">{lang === 'it' ? 'Codice' : '条形码'}</div>
-                    <div className="font-semibold text-xs">{detailProduct.barcode}</div>
+                    <div className="text-gray-500 text-xs mb-1">{lang === 'it' ? 'Codice' : '条形码'}</div>
+                    <div className="font-semibold text-gray-800 text-xs">{detailProduct.barcode}</div>
                   </div>
                 )}
               </div>
