@@ -202,7 +202,7 @@ export default function WholesalerPage() {
           {[{ label: '总订单', value: stats.totalOrders, color: 'text-blue-600' }, { label: '待确认', value: stats.pendingOrders, color: 'text-yellow-600' }, { label: '今日营收', value: `€${stats.todayRevenue.toFixed(2)}`, color: 'text-green-600' }, { label: '商品数', value: productTotal, color: 'text-purple-600' }].map(s => (
             <div key={s.label} className="bg-white rounded-xl p-4 shadow-sm">
               <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-gray-400 text-sm mt-1">{s.label}</div>
+              <div className="text-gray-600 text-sm mt-1">{s.label}</div>
             </div>
           ))}
         </div>
@@ -224,11 +224,11 @@ export default function WholesalerPage() {
               </button>
             </div>
             <div className="space-y-3">
-              {orders.filter(o => o.status !== 'pending_review').length === 0 && <div className="text-center text-gray-400 py-12">暂无订单</div>}
+              {orders.filter(o => o.status !== 'pending_review').length === 0 && <div className="text-center text-gray-500 py-12">暂无订单</div>}
               {orders.filter(o => o.status !== 'pending_review').map(order => (
                 <div key={order.id} className="bg-white rounded-xl p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
-                    <div><span className="font-semibold text-gray-800">{order.orderNo}</span><span className="ml-2 text-sm text-gray-400">{order.buyerName}</span></div>
+                    <div><span className="font-semibold text-gray-800">{order.orderNo}</span><span className="ml-2 text-sm text-gray-600">{order.buyerName}</span></div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor[order.status]}`}>{getStatusLabel(order.status)}</span>
                   </div>
                   <div className="text-sm text-gray-500 mb-2">{order.items.map(i => `${i.productName}×${i.quantity}`).join('、')}</div>
@@ -263,7 +263,7 @@ export default function WholesalerPage() {
               <button onClick={openAddProduct} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600">+ 添加商品</button>
             </div>
             <div className="flex items-center gap-3 mb-3">
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-600">
                 {activeCategoryId
                   ? `分类：${categories.find(c => c.id === activeCategoryId)?.name} — 共 ${productTotal} 个`
                   : `共 ${productTotal} 个商品`}
@@ -283,7 +283,7 @@ export default function WholesalerPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-800 truncate">{p.name}</div>
-                      <div className="text-sm text-gray-400">{cat?.name} · {p.unit} · 库存:{p.stock}</div>
+                      <div className="text-sm text-gray-600">{cat?.name} · {p.unit} · 库存:{p.stock}</div>
                       {p.barcode && <div className="text-xs text-gray-500">条码:{p.barcode}</div>}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -329,7 +329,7 @@ export default function WholesalerPage() {
           <div className="max-w-2xl">
             <div className="bg-white rounded-xl p-6 shadow-sm mb-4">
               <h3 className="font-bold text-gray-800 mb-1">邀请新商家</h3>
-              <p className="text-sm text-gray-400 mb-4">生成「商家号 + 临时密码」发给客户，客户 <b>2天内</b> 注册即成为你的客户，可浏览你的商品下单。</p>
+              <p className="text-sm text-gray-600 mb-4">生成「商家号 + 临时密码」发给客户，客户 <b>2天内</b> 注册即成为你的客户，可浏览你的商品下单。</p>
               <button onClick={generateInvite} disabled={generating}
                 className="px-5 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
                 {generating ? '生成中…' : '+ 生成邀请码'}
@@ -359,7 +359,7 @@ export default function WholesalerPage() {
             <div className="bg-white rounded-xl p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-600 mb-3">已生成的邀请（{invites.length}）</div>
               {invites.length === 0 ? (
-                <div className="text-center text-gray-400 py-8 text-sm">还没有邀请，点上方按钮生成</div>
+                <div className="text-center text-gray-500 py-8 text-sm">还没有邀请，点上方按钮生成</div>
               ) : (
                 <div className="space-y-2">
                   {invites.map(inv => {
@@ -420,7 +420,7 @@ export default function WholesalerPage() {
                 ) : (
                   <div onClick={() => fileInputRef.current?.click()} className="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
                     <span className="text-3xl mb-1">📷</span>
-                    <span className="text-sm text-gray-400">点击上传图片</span>
+                    <span className="text-sm text-gray-600">点击上传图片</span>
                     <span className="text-xs text-gray-500">JPG / PNG，最大 2MB</span>
                   </div>
                 )}
