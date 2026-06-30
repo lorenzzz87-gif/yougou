@@ -277,20 +277,27 @@ export const store = {
     if (error) throw new Error('分类创建失败: ' + error.message)
     return { id: cat.id, name, wholesalerId }
   },
+  async getSubcategories(wholesalerId: string, categoryId: string): Promise<string[]> {
+    const { data } = await supabase.from('products').select('subcategory')
+      .eq('wholesaler_id', wholesalerId).eq('category_id', categoryId).not('subcategory', 'is', null)
+    return [...new Set((data || []).map((r: any) => r.subcategory as string).filter(Boolean))].sort()
+  },
 
   // Products (scoped by wholesaler)
-  async getProducts(wholesalerId?: string, search?: string, limit = 100, offset = 0, categoryId?: string): Promise<Product[]> {
+  async getProducts(wholesalerId?: string, search?: string, limit = 100, offset = 0, categoryId?: string, subcategory?: string): Promise<Product[]> {
     let q = supabase.from('products').select('*').order('name').range(offset, offset + limit - 1)
     if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
     if (categoryId) q = q.eq('category_id', categoryId)
+    if (subcategory) q = q.eq('subcategory', subcategory)
     if (search) q = q.or(`name.ilike.%${search}%,barcode.ilike.%${search}%`)
     const { data } = await q
     return (data || []).map(toProduct)
   },
-  async countProducts(wholesalerId?: string, categoryId?: string): Promise<number> {
+  async countProducts(wholesalerId?: string, categoryId?: string, subcategory?: string): Promise<number> {
     let q = supabase.from('products').select('*', { count: 'exact', head: true })
     if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
     if (categoryId) q = q.eq('category_id', categoryId)
+    if (subcategory) q = q.eq('subcategory', subcategory)
     const { count } = await q
     return count || 0
   },

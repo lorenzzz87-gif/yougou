@@ -11,6 +11,7 @@ export default function BuyerPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCat, setSelectedCat] = useState('all')
+  const [selectedSubcat, setSelectedSubcat] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState(store.getCart())
   const [remark, setRemark] = useState('')
@@ -56,7 +57,14 @@ export default function BuyerPage() {
     return map[categoryId] || '📦'
   }
 
-  const filtered = products.filter(p => (selectedCat === 'all' || p.categoryId === selectedCat) && (!search || p.name.includes(search)))
+  const subcategories = selectedCat === 'all' ? [] :
+    [...new Set(products.filter(p => p.categoryId === selectedCat).map(p => p.subcategory).filter(Boolean) as string[])].sort()
+
+  const filtered = products.filter(p =>
+    (selectedCat === 'all' || p.categoryId === selectedCat) &&
+    (!selectedSubcat || p.subcategory === selectedSubcat) &&
+    (!search || p.name.includes(search))
+  )
   const cartTotal = cart.reduce((sum, item) => {
     const p = products.find(p => p.id === item.productId)
     if (!p) return sum
@@ -77,10 +85,32 @@ export default function BuyerPage() {
         {tab === 'shop' && (
           <div>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索商品…" className="w-full border border-gray-200 bg-white rounded-xl px-3 py-2 text-sm outline-none focus:border-orange-400 mb-3" />
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-              <button onClick={() => setSelectedCat('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium ${selectedCat === 'all' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>全部</button>
-              {categories.map(c => <button key={c.id} onClick={() => setSelectedCat(c.id)} className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium ${selectedCat === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>{c.name}</button>)}
+            {/* 大类 row */}
+            <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
+              <button onClick={() => { setSelectedCat('all'); setSelectedSubcat(null) }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium ${selectedCat === 'all' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
+                全部
+              </button>
+              {categories.map(c => (
+                <button key={c.id}
+                  onClick={() => { setSelectedCat(c.id); setSelectedSubcat(null) }}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium ${selectedCat === c.id ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
+                  {c.name}
+                </button>
+              ))}
             </div>
+            {/* 子分类 row — only when a big category is active */}
+            {subcategories.length > 0 && (
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                {subcategories.map(sub => (
+                  <button key={sub}
+                    onClick={() => setSelectedSubcat(selectedSubcat === sub ? null : sub)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border ${selectedSubcat === sub ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    {sub}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               {filtered.map(p => {
                 const packItem = cart.find(i => i.productId === p.id && i.orderUnit === 'pack')

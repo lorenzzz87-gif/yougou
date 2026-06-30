@@ -31,6 +31,8 @@ export default function B2BPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedCat, setSelectedCat] = useState('all')
+  const [selectedSubcat, setSelectedSubcat] = useState<string | null>(null)
+  const [subcategories, setSubcategories] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [cart, setCart] = useState(store.getCart())
@@ -54,28 +56,41 @@ export default function B2BPage() {
     loadProducts(u.wholesalerId, '', 0, undefined)
   }, [router])
 
-  async function loadProducts(wid: string | undefined, q: string, page: number, catId?: string) {
+  async function loadProducts(wid: string | undefined, q: string, page: number, catId?: string, subcat?: string) {
     const [prods, total] = await Promise.all([
-      store.getProducts(wid, q || undefined, PAGE_SIZE, page * PAGE_SIZE, catId),
-      store.countProducts(wid, catId),
+      store.getProducts(wid, q || undefined, PAGE_SIZE, page * PAGE_SIZE, catId, subcat),
+      store.countProducts(wid, catId, subcat),
     ])
     setProducts(prods); setProductTotal(total); setProductPage(page)
   }
 
-  function selectCategory(catId: string) {
+  async function selectCategory(catId: string) {
     setSelectedCat(catId)
+    setSelectedSubcat(null)
+    setSubcategories([])
     setSearch(''); setSearchInput('')
     loadProducts(user?.wholesalerId, '', 0, catId === 'all' ? undefined : catId)
+    if (catId !== 'all' && user?.wholesalerId) {
+      const subs = await store.getSubcategories(user.wholesalerId, catId)
+      setSubcategories(subs)
+    }
+  }
+
+  function selectSubcat(sub: string | null) {
+    setSelectedSubcat(sub)
+    loadProducts(user?.wholesalerId, '', 0, selectedCat === 'all' ? undefined : selectedCat, sub || undefined)
   }
 
   function runSearch() {
     setSelectedCat('all')
+    setSelectedSubcat(null)
+    setSubcategories([])
     setSearch(searchInput)
     loadProducts(user?.wholesalerId, searchInput, 0, undefined)
   }
 
   function goPage(page: number) {
-    loadProducts(user?.wholesalerId, search, page, selectedCat === 'all' ? undefined : selectedCat)
+    loadProducts(user?.wholesalerId, search, page, selectedCat === 'all' ? undefined : selectedCat, selectedSubcat || undefined)
   }
 
   function switchLang(l: Lang) { setLang(l); localStorage.setItem('yg_lang', l) }
@@ -165,18 +180,31 @@ export default function B2BPage() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {view === 'catalog' && (
           <div className="flex gap-6">
-            {/* Sidebar categories */}
+            {/* Sidebar categories — two-level: 大类 → 子分类 */}
             <aside className="w-52 shrink-0">
-              <div className="bg-white rounded-xl p-2 shadow-sm sticky top-32">
+              <div className="bg-white rounded-xl p-2 shadow-sm sticky top-32 max-h-[calc(100vh-10rem)] overflow-y-auto">
                 <button onClick={() => selectCategory('all')}
                   className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium mb-0.5 ${selectedCat === 'all' ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {t.all}
                 </button>
                 {categories.map(c => (
-                  <button key={c.id} onClick={() => selectCategory(c.id)}
-                    className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium mb-0.5 ${selectedCat === c.id ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
-                    {c.name}
-                  </button>
+                  <div key={c.id}>
+                    <button onClick={() => selectCategory(c.id)}
+                      className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium mb-0.5 flex items-center justify-between ${selectedCat === c.id ? 'bg-orange-50 text-orange-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                      <span className="truncate">{c.name}</span>
+                      {selectedCat === c.id && subcategories.length > 0 && <span className="text-xs shrink-0 ml-1">▾</span>}
+                    </button>
+                    {selectedCat === c.id && subcategories.length > 0 && (
+                      <div className="ml-3 mb-1 border-l-2 border-orange-100 pl-2">
+                        {subcategories.map(sub => (
+                          <button key={sub} onClick={() => selectSubcat(selectedSubcat === sub ? null : sub)}
+                            className={`w-full text-left px-2 py-1.5 rounded-lg text-xs mb-0.5 ${selectedSubcat === sub ? 'bg-orange-100 text-orange-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </aside>

@@ -111,43 +111,24 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     e.target.value = ''
   }
 
-  // ── Step 1 → 2: match + preview, apply folder-based category override ──
+  // ── Step 1 → 2: match images + apply Excel-E categories ──
   async function doMatch() {
     if (rows.length === 0) return
 
-    // collect new categories from ZIP folders first
+    // Categories come from Excel E column only. ZIP folder names are only for image file matching.
     const localCats = [...categories]
-    const folderCats = new Set<string>()
-    for (const [, zi] of imageMap) {
-      if (zi.category) folderCats.add(zi.category)
-    }
-    const newCatMsgs: string[] = []
-    for (const catName of folderCats) {
-      if (!localCats.find(c => c.name === catName)) {
-        const nc = await store.addCategory(catName, wholesalerId)
-        localCats.push(nc)
-        newCatMsgs.push(catName)
-      }
-    }
-    if (newCatMsgs.length > 0) {
-      setErrors(p => [`✅ 从文件夹新建分类：${newCatMsgs.join('、')}`, ...p])
-    }
 
     const matched = await Promise.all(rows.map(async row => {
-      const skuK     = barcodeKey(row.sku)      // 编号优先
-      const barcodeK = barcodeKey(row.barcode)  // 条形码次之
-      const nameK    = barcodeKey(row.name)     // 商品名兜底
+      const skuK     = barcodeKey(row.sku)
+      const barcodeK = barcodeKey(row.barcode)
+      const nameK    = barcodeKey(row.name)
       let zipImg: ZipImage | undefined
       for (const [key, zi] of imageMap) {
         if ((skuK && key === skuK) || (barcodeK && key === barcodeK) || key === nameK) { zipImg = zi; break }
       }
 
-      // Category priority: ZIP folder > Excel J column > empty
+      // Category from Excel E column only
       let categoryId = row.categoryId
-      if (zipImg?.category) {
-        const cat = localCats.find(c => c.name === zipImg!.category)
-        if (cat) categoryId = cat.id
-      }
       if (!categoryId && row.categoryName) {
         let cat = localCats.find(c => c.name === row.categoryName)
         if (!cat) {
@@ -257,18 +238,6 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
     }
     const barcodeToId = keyToId
 
-    // Pre-build category map from folder names (auto-create if missing)
-    setImgOnlyMsg('检查分类…')
-    const localCats = [...categories]
-    const folderNames = new Set([...imgOnlyMap.values()].map(zi => zi.category).filter(Boolean) as string[])
-    for (const catName of folderNames) {
-      if (!localCats.find(c => c.name === catName)) {
-        const nc = await store.addCategory(catName, wholesalerId)
-        localCats.push(nc)
-      }
-    }
-    const catNameToId = new Map(localCats.map(c => [c.name, c.id]))
-
     let ok = 0, skipped = 0
     const unmatched: string[] = []
     const entries = [...imgOnlyMap.entries()]
@@ -281,13 +250,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
       try {
         const compressed = await compressImage(zi.blob)
         const url = await store.uploadProductImage(wholesalerId, key, compressed)
-        // update image + category (from folder name)
-        const updates: Record<string, any> = { image: url }
-        if (zi.category) {
-          const catId = catNameToId.get(zi.category)
-          if (catId) updates.categoryId = catId
-        }
-        await store.updateProduct(prodId, updates)
+        await store.updateProduct(prodId, { image: url })
         ok++
       } catch { skipped++ }
     }
@@ -359,7 +322,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
                   ))}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  橙色为文件夹名（自动当分类）· 文件名需和编号一致
+                  文件名需和编号一致（ZIP 文件夹名仅辅助识别，不影响分类）
                 </div>
               </div>
             )}
@@ -385,7 +348,7 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
           {/* ── 独立图片更新区 ── */}
           <div className="bg-white rounded-xl p-5 shadow-sm border-2 border-dashed border-blue-100">
             <div className="text-sm font-semibold text-gray-700 mb-1">🖼️ 分批上传图片（自动分配分类）</div>
-            <p className="text-xs text-gray-400 mb-3">先导入 Excel 数据，再分批上传图片。<strong>文件夹名 = 分类</strong>，文件名 = 编号。ZIP 文件夹自动创建分类并分配给商品。每批建议 150-200 张。</p>
+            <p className="text-xs text-gray-400 mb-3">先导入 Excel 数据，再分批上传图片。文件名 = 编号（如 <code className="bg-gray-100 px-1 rounded">001.jpg</code>）。ZIP 文件夹名仅辅助识别，不创建分类。每批建议 150-200 张。</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <button onClick={() => zipOnlyRef.current?.click()} disabled={imgOnlyRunning}
                 className="flex flex-col items-center gap-1.5 p-3 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors text-sm">
