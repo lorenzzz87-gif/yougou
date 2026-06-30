@@ -67,6 +67,13 @@ export default function B2BPage() {
   }
 
   async function selectCategory(catId: string) {
+    // clicking the already-active category collapses it back to "all"
+    if (catId !== 'all' && catId === selectedCat) {
+      setSelectedCat('all'); setSelectedSubcat(null); setSubcategories([])
+      setSearch(''); setSearchInput('')
+      loadProducts(user?.wholesalerId, '', 0, undefined)
+      return
+    }
     setSelectedCat(catId)
     setSelectedSubcat(null)
     setSubcategories([])
