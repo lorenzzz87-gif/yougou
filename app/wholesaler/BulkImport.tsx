@@ -17,7 +17,8 @@ interface ParsedRow {
   stock: number
   barcode: string
   description?: string
-  imageBlob?: Blob
+  imageBlob?: Blob          // primary image
+  imageBlobs?: Blob[]       // extra images (_2, _3 …)
   imageUrl?: string
   imagePreview?: string
   matched: boolean
@@ -130,9 +131,17 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
       const skuK     = barcodeKey(row.sku)
       const barcodeK = barcodeKey(row.barcode)
       const nameK    = barcodeKey(row.name)
-      let zipImg: ZipImage | undefined
+      const primaryKeys = new Set([skuK, barcodeK, nameK].filter(Boolean))
+
+      let primaryZip: ZipImage | undefined
+      const extraZips: ZipImage[] = []
       for (const [key, zi] of imageMap) {
-        if ((skuK && key === skuK) || (barcodeK && key === barcodeK) || key === nameK) { zipImg = zi; break }
+        if (primaryKeys.has(key)) { primaryZip = zi }
+        else {
+          // extra images: T30010_2, T30010_3, T30010-2 … for any of the primary keys
+          const isExtra = [...primaryKeys].some(pk => key.startsWith(pk + '_') || key.startsWith(pk + '-'))
+          if (isExtra) extraZips.push(zi)
+        }
       }
 
       // Category from Excel E column only (already created above)
@@ -142,11 +151,12 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
         if (cat) categoryId = cat.id
       }
 
-      if (zipImg?.blob) {
+      if (primaryZip?.blob) {
         try {
-          const compressed = await compressImage(zipImg.blob)
+          const compressed = await compressImage(primaryZip.blob)
           const preview = URL.createObjectURL(compressed)
-          return { ...row, categoryId, imageBlob: compressed, imagePreview: preview, matched: true }
+          const extraBlobs = (await Promise.all(extraZips.map(z => compressImage(z.blob).catch(() => null)))).filter(Boolean) as Blob[]
+          return { ...row, categoryId, imageBlob: compressed, imageBlobs: extraBlobs, imagePreview: preview, matched: true }
         } catch { /* skip bad image */ }
       }
       return { ...row, categoryId, matched: false }
@@ -170,15 +180,21 @@ export default function BulkImport({ wholesalerId, categories, onDone }: Props) 
       setProgressMsg(`正在处理: ${row.name} (${i + 1}/${total})`)
       try {
         let imageUrl: string | undefined
+        let extraUrls: string[] = []
+        const imgKey = barcodeKey(row.sku) || barcodeKey(row.barcode) || barcodeKey(row.name) || `p${Date.now()}`
         if (row.imageBlob) {
           try {
-            const imgKey = barcodeKey(row.sku) || barcodeKey(row.barcode) || barcodeKey(row.name) || `p${Date.now()}`
-          imageUrl = await store.uploadProductImage(wholesalerId, imgKey, row.imageBlob)
+            imageUrl = await store.uploadProductImage(wholesalerId, imgKey, row.imageBlob)
           } catch (e: any) { errs.push(`${row.name} 图片上传失败: ${e.message}`) }
+        }
+        if (row.imageBlobs?.length) {
+          extraUrls = (await Promise.all(row.imageBlobs.map((blob, i) =>
+            store.uploadProductImage(wholesalerId, `${imgKey}_${i + 2}`, blob).catch(() => null)
+          ))).filter(Boolean) as string[]
         }
         // SKU(编号) is primary key; barcode(EAN) is secondary
         await store.addProduct(
-          { name: row.name, categoryId: row.categoryId, price: row.price, unit: row.unit, boxQty: row.boxQty, subcategory: row.subcategory, stock: row.stock, barcode: row.barcode || undefined, description: row.description, image: imageUrl },
+          { name: row.name, categoryId: row.categoryId, price: row.price, unit: row.unit, boxQty: row.boxQty, subcategory: row.subcategory, stock: row.stock, barcode: row.barcode || undefined, description: row.description, image: imageUrl, images: extraUrls.length ? extraUrls : undefined },
           wholesalerId,
           row.sku || undefined
         )

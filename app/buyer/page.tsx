@@ -20,6 +20,7 @@ export default function BuyerPage() {
   const [placing, setPlacing] = useState(false)
   const [unitPicker, setUnitPicker] = useState<string | null>(null)
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
+  const [detailImgIdx, setDetailImgIdx] = useState(0)
   const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null)
 
   useEffect(() => {
@@ -235,15 +236,31 @@ export default function BuyerPage() {
       </div>
 
       {detailProduct && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setDetailProduct(null)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setDetailProduct(null); setDetailImgIdx(0) }}>
           <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="relative w-full bg-gray-50">
-              {detailProduct.image
-                ? <img src={detailProduct.image} alt={detailProduct.name} className="w-full object-contain max-h-72" />
-                : <div className="w-full h-48 flex items-center justify-center text-6xl">{productEmoji(detailProduct.categoryId)}</div>
-              }
-              <button onClick={() => setDetailProduct(null)} className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center text-lg">✕</button>
-            </div>
+            {(() => {
+              const imgs = [detailProduct.image, ...(detailProduct.images || [])].filter(Boolean) as string[]
+              const idx = Math.min(detailImgIdx, imgs.length - 1)
+              return (
+                <div className="relative w-full bg-gray-50 min-h-[180px] flex items-center justify-center">
+                  {imgs.length > 0
+                    ? <img src={imgs[idx]} alt={detailProduct.name} className="w-full object-contain max-h-72" />
+                    : <div className="w-full h-48 flex items-center justify-center text-6xl">{productEmoji(detailProduct.categoryId)}</div>
+                  }
+                  {imgs.length > 1 && <>
+                    <button onClick={() => setDetailImgIdx(i => (i - 1 + imgs.length) % imgs.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center text-xl">‹</button>
+                    <button onClick={() => setDetailImgIdx(i => (i + 1) % imgs.length)}
+                      className="absolute right-10 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center text-xl">›</button>
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                      {imgs.map((_, i) => <button key={i} onClick={() => setDetailImgIdx(i)} className={`h-2 rounded-full transition-all ${i === idx ? 'bg-orange-500 w-4' : 'bg-white/70 w-2'}`} />)}
+                    </div>
+                    <div className="absolute bottom-2 right-2 text-xs text-white/80 bg-black/30 px-1.5 py-0.5 rounded-full">{idx + 1}/{imgs.length}</div>
+                  </>}
+                  <button onClick={() => { setDetailProduct(null); setDetailImgIdx(0) }} className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center text-lg">✕</button>
+                </div>
+              )
+            })()}
             <div className="p-4">
               <div className="font-bold text-gray-800 text-lg mb-1">{detailProduct.name}</div>
               {detailProduct.subcategory && <span className="inline-block text-xs bg-orange-50 text-orange-500 px-2 py-0.5 rounded mb-3">{detailProduct.subcategory}</span>}

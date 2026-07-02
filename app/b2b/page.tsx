@@ -57,6 +57,7 @@ export default function B2BPage() {
   const [toast, setToast] = useState('')
   const [unitPicker, setUnitPicker] = useState<string | null>(null)
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
+  const [detailImgIdx, setDetailImgIdx] = useState(0)
   const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null)
   const [profile, setProfile] = useState<BuyerProfile | null>(null)
   const [profileForm, setProfileForm] = useState<Omit<BuyerProfile, 'userId'>>({})
@@ -484,15 +485,31 @@ export default function B2BPage() {
 
       {/* Product detail modal */}
       {detailProduct && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setDetailProduct(null)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setDetailProduct(null); setDetailImgIdx(0) }}>
           <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="relative bg-gray-50 flex items-center justify-center" style={{minHeight: '280px'}}>
-              {detailProduct.image
-                ? <img src={detailProduct.image} alt={detailProduct.name} className="w-full object-contain max-h-72" />
-                : <Package className="w-16 h-16 text-gray-300" strokeWidth={1.5} />
-              }
-              <button onClick={() => setDetailProduct(null)} className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors"><X className="w-4 h-4" strokeWidth={2} /></button>
-            </div>
+            {(() => {
+              const imgs = [detailProduct.image, ...(detailProduct.images || [])].filter(Boolean) as string[]
+              const idx = Math.min(detailImgIdx, imgs.length - 1)
+              return (
+                <div className="relative bg-gray-50 flex items-center justify-center" style={{minHeight: '280px'}}>
+                  {imgs.length > 0
+                    ? <img src={imgs[idx]} alt={detailProduct.name} className="w-full object-contain max-h-72" />
+                    : <Package className="w-16 h-16 text-gray-300" strokeWidth={1.5} />
+                  }
+                  {imgs.length > 1 && <>
+                    <button onClick={() => setDetailImgIdx(i => (i - 1 + imgs.length) % imgs.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60">‹</button>
+                    <button onClick={() => setDetailImgIdx(i => (i + 1) % imgs.length)}
+                      className="absolute right-10 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60">›</button>
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                      {imgs.map((_, i) => <button key={i} onClick={() => setDetailImgIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-orange-500 w-4' : 'bg-white/70'}`} />)}
+                    </div>
+                    <div className="absolute bottom-2 right-2 text-xs text-white/80 bg-black/30 px-1.5 py-0.5 rounded-full">{idx + 1}/{imgs.length}</div>
+                  </>}
+                  <button onClick={() => { setDetailProduct(null); setDetailImgIdx(0) }} className="absolute top-3 right-3 w-8 h-8 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-colors"><X className="w-4 h-4" strokeWidth={2} /></button>
+                </div>
+              )
+            })()}
             <div className="p-5 overflow-y-auto">
               <div className="font-bold text-gray-800 text-xl mb-1">{detailProduct.name}</div>
               {detailProduct.subcategory && <span className="inline-block text-xs bg-orange-50 text-orange-500 px-2 py-0.5 rounded mb-3">{detailProduct.subcategory}</span>}

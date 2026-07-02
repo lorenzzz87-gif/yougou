@@ -68,6 +68,7 @@ export interface Product {
   unit: string
   stock: number
   image?: string
+  images?: string[]  // additional images (index 0 = primary)
   sku?: string
   barcode?: string
   description?: string
@@ -178,6 +179,7 @@ function toProduct(row: Record<string, unknown>): Product {
     barcode: row.barcode as string | undefined,
     description: row.description as string | undefined,
     image: row.image as string | undefined,
+    images: Array.isArray(row.images) ? (row.images as string[]) : undefined,
     videoUrl: row.video_url as string | undefined,
     boxQty: row.box_qty != null ? Number(row.box_qty) : undefined,
     subcategory: row.subcategory as string | undefined,
@@ -359,6 +361,7 @@ export const store = {
       if (existing) {
         const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description, barcode: p.barcode || null, box_qty: p.boxQty || null, subcategory: p.subcategory || null }
         if (p.image) upd.image = p.image
+        if (p.images?.length) upd.images = p.images
         await supabase.from('products').update(upd).eq('id', existing.id)
         return { ...p, sku, id: existing.id, wholesalerId }
       }
@@ -367,11 +370,12 @@ export const store = {
       if (existing) {
         const upd: Record<string, unknown> = { name: p.name, category_id: p.categoryId, price: p.price, unit: p.unit, stock: p.stock, description: p.description, box_qty: p.boxQty || null, subcategory: p.subcategory || null }
         if (p.image) upd.image = p.image
+        if (p.images?.length) upd.images = p.images
         await supabase.from('products').update(upd).eq('id', existing.id)
         return { ...p, id: existing.id, wholesalerId }
       }
     }
-    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId || null, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description || null, image: p.image || null, video_url: p.videoUrl || null, box_qty: p.boxQty || null, subcategory: p.subcategory || null, wholesaler_id: wholesalerId }
+    const product = { id: `p${Date.now()}${Math.floor(Math.random() * 1000)}`, name: p.name, category_id: p.categoryId || null, price: p.price, unit: p.unit, stock: p.stock, sku: sku || null, barcode: p.barcode || null, description: p.description || null, image: p.image || null, images: p.images?.length ? p.images : null, video_url: p.videoUrl || null, box_qty: p.boxQty || null, subcategory: p.subcategory || null, wholesaler_id: wholesalerId }
     const { error } = await supabase.from('products').insert(product)
     if (error) throw new Error(error.message + (error.details ? ' | ' + error.details : '') + (error.hint ? ' | 提示: ' + error.hint : ''))
     return { ...p, sku, id: product.id, wholesalerId }
@@ -387,6 +391,7 @@ export const store = {
     if (updates.barcode !== undefined) row.barcode = updates.barcode
     if (updates.description !== undefined) row.description = updates.description
     if (updates.image !== undefined) row.image = updates.image
+    if (updates.images !== undefined) row.images = updates.images?.length ? updates.images : null
     if (updates.videoUrl !== undefined) row.video_url = updates.videoUrl
     if (updates.boxQty !== undefined) row.box_qty = updates.boxQty || null
     if (updates.subcategory !== undefined) row.subcategory = updates.subcategory || null
