@@ -460,9 +460,9 @@ export default function WholesalerPage() {
 
       {showProductForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-gray-800 mb-4">{editProduct ? '编辑商品' : '添加商品'}</h3>
-            <div className="space-y-3">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <h3 className="font-bold text-gray-800 px-6 pt-6 pb-4 shrink-0">{editProduct ? '编辑商品' : '添加商品'}</h3>
+            <div className="space-y-3 px-6 pb-4 overflow-y-auto flex-1">
               <div>
                 <label className="text-sm text-gray-500 mb-1 block">商品图片</label>
                 {imagePreview ? (
@@ -547,9 +547,9 @@ export default function WholesalerPage() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 placeholder:text-gray-400" />
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowProductForm(false)} className="flex-1 py-2 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">取消</button>
-              <button onClick={saveProduct} disabled={saving} className="flex-1 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white shrink-0">
+              <button onClick={() => setShowProductForm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">取消</button>
+              <button onClick={saveProduct} disabled={saving} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
                 {saving ? '保存中…' : '保存'}
               </button>
             </div>
