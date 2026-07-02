@@ -50,6 +50,8 @@ export default function WholesalerPage() {
   const [sortLoading, setSortLoading] = useState(false)
   const [dragProdIdx, setDragProdIdx] = useState<number | null>(null)
   const [savingSort, setSavingSort] = useState(false)
+  const [sortSubcats, setSortSubcats] = useState<string[]>([])
+  const [sortSelectedSubcat, setSortSelectedSubcat] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -189,8 +191,25 @@ export default function WholesalerPage() {
 
   async function openProductSort(cat: Category) {
     setSortModal({ catId: cat.id, catName: cat.name })
+    setSortProducts([])
+    setSortSelectedSubcat(null)
+    setSortSubcats([])
     setSortLoading(true)
-    const prods = await store.getProducts(wid, undefined, 1000, 0, cat.id)
+    const subs = await store.getSubcategories(wid, cat.id)
+    setSortSubcats(subs)
+    if (subs.length === 0) {
+      // 无子分类 → 直接对大类下所有商品排序
+      const prods = await store.getProducts(wid, undefined, 1000, 0, cat.id)
+      setSortProducts(prods)
+    }
+    setSortLoading(false)
+  }
+
+  async function loadSortSubcat(sub: string) {
+    if (!sortModal) return
+    setSortSelectedSubcat(sub)
+    setSortLoading(true)
+    const prods = await store.getProducts(wid, undefined, 1000, 0, sortModal.catId, sub)
     setSortProducts(prods)
     setSortLoading(false)
   }
@@ -207,9 +226,15 @@ export default function WholesalerPage() {
   async function saveProductSort() {
     if (!sortModal) return
     setSavingSort(true)
-    try { await store.reorderProducts(sortProducts.map(p => p.id)); showToast('商品排序已保存') }
-    catch (e: any) { showToast('保存失败: ' + e.message) }
-    setSavingSort(false); setSortModal(null); refreshData(wid)
+    try {
+      await store.reorderProducts(sortProducts.map(p => p.id))
+      showToast(sortSelectedSubcat ? `「${sortSelectedSubcat}」排序已保存` : '商品排序已保存')
+    } catch (e: any) { showToast('保存失败: ' + e.message) }
+    setSavingSort(false)
+    refreshData(wid)
+    // 有子分类时回到子分类选择，方便继续排其它子分类；否则关闭
+    if (sortSubcats.length > 0) { setSortSelectedSubcat(null); setSortProducts([]) }
+    else setSortModal(null)
   }
 
   async function clearAllData() {
@@ -609,40 +634,65 @@ export default function WholesalerPage() {
       {sortModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-6 pt-5 pb-3 shrink-0">
-              <h3 className="font-bold text-gray-800">商品排序 · {sortModal.catName}</h3>
-              <p className="text-xs text-gray-500 mt-1">拖动图片调整顺序，左上角数字为买家端显示位置。</p>
-            </div>
-            <div className="px-6 pb-4 overflow-y-auto flex-1">
-              {sortLoading ? (
-                <div className="text-center text-gray-400 py-16 text-sm">加载中…</div>
-              ) : sortProducts.length === 0 ? (
-                <div className="text-center text-gray-400 py-16 text-sm">该分类下暂无商品</div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {sortProducts.map((p, idx) => (
-                    <div key={p.id}
-                      draggable
-                      onDragStart={() => setDragProdIdx(idx)}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={() => handleProdDrop(idx)}
-                      className={`relative rounded-lg overflow-hidden border-2 cursor-grab bg-gray-50 ${dragProdIdx === idx ? 'border-orange-400 opacity-50' : 'border-transparent'}`}>
-                      <div className="absolute top-1 left-1 z-10 w-5 h-5 bg-orange-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">{idx + 1}</div>
-                      <div className="w-full aspect-square flex items-center justify-center">
-                        {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-contain pointer-events-none" /> : <Package className="w-6 h-6 text-gray-300" strokeWidth={1.5} />}
-                      </div>
-                      <div className="px-1.5 py-1 text-[11px] text-gray-600 truncate bg-white">{p.name}</div>
-                    </div>
-                  ))}
+            {(() => {
+              const pickingSubcat = sortSubcats.length > 0 && sortSelectedSubcat === null
+              return <>
+                <div className="px-6 pt-5 pb-3 shrink-0">
+                  <h3 className="font-bold text-gray-800">
+                    商品排序 · {sortModal.catName}
+                    {sortSelectedSubcat && <span className="text-orange-500"> / {sortSelectedSubcat}</span>}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {pickingSubcat ? '该大类含子分类，请选择要排序的子分类。' : '拖动图片调整顺序，左上角数字为买家端显示位置。'}
+                  </p>
+                  {sortSelectedSubcat && (
+                    <button onClick={() => { setSortSelectedSubcat(null); setSortProducts([]) }} className="text-xs text-orange-500 hover:underline mt-1">← 返回子分类列表</button>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white shrink-0">
-              <button onClick={() => setSortModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">取消</button>
-              <button onClick={saveProductSort} disabled={savingSort || sortLoading} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
-                {savingSort ? '保存中…' : '保存排序'}
-              </button>
-            </div>
+                <div className="px-6 pb-4 overflow-y-auto flex-1">
+                  {sortLoading ? (
+                    <div className="text-center text-gray-400 py-16 text-sm">加载中…</div>
+                  ) : pickingSubcat ? (
+                    <div className="space-y-1.5">
+                      {sortSubcats.map(sub => (
+                        <button key={sub} onClick={() => loadSortSubcat(sub)}
+                          className="w-full flex items-center justify-between py-3 px-4 rounded-xl border border-gray-100 hover:border-orange-300 hover:bg-orange-50 text-left transition-colors group">
+                          <span className="text-gray-800 text-sm group-hover:text-orange-600">{sub}</span>
+                          <span className="text-xs text-gray-400 group-hover:text-orange-500">排序 →</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : sortProducts.length === 0 ? (
+                    <div className="text-center text-gray-400 py-16 text-sm">该分类下暂无商品</div>
+                  ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {sortProducts.map((p, idx) => (
+                        <div key={p.id}
+                          draggable
+                          onDragStart={() => setDragProdIdx(idx)}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={() => handleProdDrop(idx)}
+                          className={`relative rounded-lg overflow-hidden border-2 cursor-grab bg-gray-50 ${dragProdIdx === idx ? 'border-orange-400 opacity-50' : 'border-transparent'}`}>
+                          <div className="absolute top-1 left-1 z-10 w-5 h-5 bg-orange-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">{idx + 1}</div>
+                          <div className="w-full aspect-square flex items-center justify-center">
+                            {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-contain pointer-events-none" /> : <Package className="w-6 h-6 text-gray-300" strokeWidth={1.5} />}
+                          </div>
+                          <div className="px-1.5 py-1 text-[11px] text-gray-600 truncate bg-white">{p.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white shrink-0">
+                  <button onClick={() => setSortModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">关闭</button>
+                  {!pickingSubcat && (
+                    <button onClick={saveProductSort} disabled={savingSort || sortLoading || sortProducts.length === 0} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
+                      {savingSort ? '保存中…' : '保存排序'}
+                    </button>
+                  )}
+                </div>
+              </>
+            })()}
           </div>
         </div>
       )}
