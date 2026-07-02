@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   CheckCircle2,
+  GripVertical,
 } from 'lucide-react'
 import { store, User, Product, Order, Category, Invite, getStatusLabel } from '@/lib/store'
 import { exportAllOrders, exportSingleOrder } from '@/lib/excel'
@@ -43,6 +44,12 @@ export default function WholesalerPage() {
   const [extraImages, setExtraImages] = useState<string[]>([])       // existing extra URLs
   const [newExtraFiles, setNewExtraFiles] = useState<File[]>([])      // new files to upload
   const [newCatName, setNewCatName] = useState('')
+  const [dragCatIdx, setDragCatIdx] = useState<number | null>(null)
+  const [sortModal, setSortModal] = useState<{ catId: string; catName: string } | null>(null)
+  const [sortProducts, setSortProducts] = useState<Product[]>([])
+  const [sortLoading, setSortLoading] = useState(false)
+  const [dragProdIdx, setDragProdIdx] = useState<number | null>(null)
+  const [savingSort, setSavingSort] = useState(false)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -167,6 +174,42 @@ export default function WholesalerPage() {
   async function addCategory() {
     if (!newCatName.trim()) return
     await store.addCategory(newCatName.trim(), wid); setNewCatName(''); refreshData(wid)
+  }
+
+  async function handleCatDrop(targetIdx: number) {
+    if (dragCatIdx === null || dragCatIdx === targetIdx) { setDragCatIdx(null); return }
+    const reordered = [...categories]
+    const [moved] = reordered.splice(dragCatIdx, 1)
+    reordered.splice(targetIdx, 0, moved)
+    setCategories(reordered)
+    setDragCatIdx(null)
+    try { await store.reorderCategories(reordered.map(c => c.id)); showToast('分类顺序已保存') }
+    catch (e: any) { showToast('保存失败: ' + e.message) }
+  }
+
+  async function openProductSort(cat: Category) {
+    setSortModal({ catId: cat.id, catName: cat.name })
+    setSortLoading(true)
+    const prods = await store.getProducts(wid, undefined, 1000, 0, cat.id)
+    setSortProducts(prods)
+    setSortLoading(false)
+  }
+
+  function handleProdDrop(targetIdx: number) {
+    if (dragProdIdx === null || dragProdIdx === targetIdx) { setDragProdIdx(null); return }
+    const reordered = [...sortProducts]
+    const [moved] = reordered.splice(dragProdIdx, 1)
+    reordered.splice(targetIdx, 0, moved)
+    setSortProducts(reordered)
+    setDragProdIdx(null)
+  }
+
+  async function saveProductSort() {
+    if (!sortModal) return
+    setSavingSort(true)
+    try { await store.reorderProducts(sortProducts.map(p => p.id)); showToast('商品排序已保存') }
+    catch (e: any) { showToast('保存失败: ' + e.message) }
+    setSavingSort(false); setSortModal(null); refreshData(wid)
   }
 
   async function clearAllData() {
@@ -437,22 +480,27 @@ export default function WholesalerPage() {
         {tab === 'categories' && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex gap-2 mb-4">
-              <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="新分类名称" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400" />
+              <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="新分类名称" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400" />
               <button onClick={addCategory} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600">添加</button>
             </div>
+            <p className="text-xs text-gray-500 mb-2">拖动 <GripVertical className="inline w-3.5 h-3.5 -mt-0.5" /> 调整分类顺序（影响买家端显示顺序）；点「商品排序」拖动商品图片排序。</p>
             <div className="space-y-1">
-              {categories.map(c => (
-                <button key={c.id}
-                  onClick={() => {
-                    setTab('products')
-                    setSearch('')
-                    loadProductsByCategory(c.id)
-                  }}
-                  className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-orange-50 hover:text-orange-600 text-left border-b border-gray-50 last:border-0 transition-colors group">
-                  <span className="text-gray-700 group-hover:text-orange-600">{c.name}</span>
-                  <span className="text-xs text-gray-300 group-hover:text-orange-400">查看商品 →</span>
-                </button>
+              {categories.map((c, idx) => (
+                <div key={c.id}
+                  draggable
+                  onDragStart={() => setDragCatIdx(idx)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => handleCatDrop(idx)}
+                  className={`flex items-center gap-2 py-2 px-2 rounded-lg border transition-colors ${dragCatIdx === idx ? 'border-orange-300 bg-orange-50 opacity-60' : 'border-transparent hover:bg-gray-50'}`}>
+                  <GripVertical className="w-4 h-4 text-gray-400 cursor-grab shrink-0" />
+                  <span className="flex-1 text-gray-800 text-sm truncate">{c.name}</span>
+                  <button onClick={() => openProductSort(c)}
+                    className="text-xs px-2.5 py-1 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 shrink-0">商品排序</button>
+                  <button onClick={() => { setTab('products'); setSearch(''); loadProductsByCategory(c.id) }}
+                    className="text-xs px-2.5 py-1 text-gray-500 hover:text-orange-600 shrink-0">查看 →</button>
+                </div>
               ))}
+              {categories.length === 0 && <div className="text-center text-gray-400 py-8 text-sm">还没有分类</div>}
             </div>
           </div>
         )}
@@ -551,6 +599,48 @@ export default function WholesalerPage() {
               <button onClick={() => setShowProductForm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">取消</button>
               <button onClick={saveProduct} disabled={saving} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
                 {saving ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 商品拖动排序弹窗 */}
+      {sortModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 pt-5 pb-3 shrink-0">
+              <h3 className="font-bold text-gray-800">商品排序 · {sortModal.catName}</h3>
+              <p className="text-xs text-gray-500 mt-1">拖动图片调整顺序，左上角数字为买家端显示位置。</p>
+            </div>
+            <div className="px-6 pb-4 overflow-y-auto flex-1">
+              {sortLoading ? (
+                <div className="text-center text-gray-400 py-16 text-sm">加载中…</div>
+              ) : sortProducts.length === 0 ? (
+                <div className="text-center text-gray-400 py-16 text-sm">该分类下暂无商品</div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {sortProducts.map((p, idx) => (
+                    <div key={p.id}
+                      draggable
+                      onDragStart={() => setDragProdIdx(idx)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => handleProdDrop(idx)}
+                      className={`relative rounded-lg overflow-hidden border-2 cursor-grab bg-gray-50 ${dragProdIdx === idx ? 'border-orange-400 opacity-50' : 'border-transparent'}`}>
+                      <div className="absolute top-1 left-1 z-10 w-5 h-5 bg-orange-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">{idx + 1}</div>
+                      <div className="w-full aspect-square flex items-center justify-center">
+                        {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-contain pointer-events-none" /> : <Package className="w-6 h-6 text-gray-300" strokeWidth={1.5} />}
+                      </div>
+                      <div className="px-1.5 py-1 text-[11px] text-gray-600 truncate bg-white">{p.name}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-white shrink-0">
+              <button onClick={() => setSortModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm hover:bg-gray-50">取消</button>
+              <button onClick={saveProductSort} disabled={savingSort || sortLoading} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
+                {savingSort ? '保存中…' : '保存排序'}
               </button>
             </div>
           </div>

@@ -58,6 +58,7 @@ export interface Category {
   id: string
   name: string
   wholesalerId?: string
+  sortOrder?: number
 }
 
 export interface Product {
@@ -75,6 +76,7 @@ export interface Product {
   videoUrl?: string
   boxQty?: number // 装箱数：每箱含多少个"包装数"单位
   subcategory?: string
+  sortOrder?: number
   wholesalerId?: string
 }
 
@@ -183,6 +185,7 @@ function toProduct(row: Record<string, unknown>): Product {
     videoUrl: row.video_url as string | undefined,
     boxQty: row.box_qty != null ? Number(row.box_qty) : undefined,
     subcategory: row.subcategory as string | undefined,
+    sortOrder: row.sort_order != null ? Number(row.sort_order) : 0,
     wholesalerId: row.wholesaler_id as string | undefined,
   }
 }
@@ -322,7 +325,11 @@ export const store = {
     let q = supabase.from('categories').select('*')
     if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
     const { data } = await q
-    return (data || []).map(r => ({ id: r.id, name: r.name, wholesalerId: r.wholesaler_id || undefined }))
+    const cats = (data || []).map(r => ({ id: r.id, name: r.name, wholesalerId: r.wholesaler_id || undefined, sortOrder: r.sort_order != null ? Number(r.sort_order) : 0 }))
+    return cats.sort((a, b) => (a.sortOrder! - b.sortOrder!) || a.name.localeCompare(b.name))
+  },
+  async reorderCategories(orderedIds: string[]): Promise<void> {
+    await Promise.all(orderedIds.map((id, i) => supabase.from('categories').update({ sort_order: i }).eq('id', id)))
   },
   async addCategory(name: string, wholesalerId: string): Promise<Category> {
     const cat = { id: `c${Date.now()}`, name, wholesaler_id: wholesalerId }
@@ -338,7 +345,7 @@ export const store = {
 
   // Products (scoped by wholesaler)
   async getProducts(wholesalerId?: string, search?: string, limit = 100, offset = 0, categoryId?: string, subcategory?: string): Promise<Product[]> {
-    let q = supabase.from('products').select('*').order('name').range(offset, offset + limit - 1)
+    let q = supabase.from('products').select('*').order('sort_order', { ascending: true }).order('name').range(offset, offset + limit - 1)
     if (wholesalerId) q = q.eq('wholesaler_id', wholesalerId)
     if (categoryId) q = q.eq('category_id', categoryId)
     if (subcategory) q = q.eq('subcategory', subcategory)
@@ -399,6 +406,9 @@ export const store = {
   },
   async deleteProduct(id: string) {
     await supabase.from('products').delete().eq('id', id)
+  },
+  async reorderProducts(orderedIds: string[]): Promise<void> {
+    await Promise.all(orderedIds.map((id, i) => supabase.from('products').update({ sort_order: i }).eq('id', id)))
   },
   async clearAllWholesalerData(wholesalerId: string) {
     // Delete all storage images
