@@ -5,6 +5,13 @@ export const metadata: Metadata = {
   title: "Yigo 易购 - B2B订货平台",
   description: "Yigo 易购 — 意大利华人B2B订货平台",
   appleWebApp: { title: "Yigo 易购", capable: true, statusBarStyle: "default" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
