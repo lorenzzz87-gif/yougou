@@ -505,7 +505,7 @@ export default function WholesalerPage() {
                   <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-500 hover:border-orange-400 hover:text-orange-400 transition-colors shrink-0 text-2xl cursor-pointer">
                     +
                     <input type="file" accept="image/*" multiple className="hidden"
-                      onChange={e => { setNewExtraFiles(fs => [...fs, ...Array.from(e.target.files || [])]); e.target.value = '' }} />
+                      onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; setNewExtraFiles(fs => [...fs, ...files]) }} />
                   </label>
                 </div>
               </div>
