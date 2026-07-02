@@ -486,14 +486,14 @@ export default function B2BPage() {
       {/* Product detail modal */}
       {detailProduct && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setDetailProduct(null); setDetailImgIdx(0) }}>
-          <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-3xl rounded-2xl overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {(() => {
               const imgs = [detailProduct.image, ...(detailProduct.images || [])].filter(Boolean) as string[]
               const idx = Math.min(detailImgIdx, imgs.length - 1)
               return (
-                <div className="relative bg-gray-50 flex items-center justify-center" style={{minHeight: '280px'}}>
+                <div className="relative bg-gray-50 flex items-center justify-center" style={{minHeight: '340px'}}>
                   {imgs.length > 0
-                    ? <img src={imgs[idx]} alt={detailProduct.name} className="w-full object-contain max-h-72" />
+                    ? <img src={imgs[idx]} alt={detailProduct.name} className="w-full object-contain max-h-[460px]" />
                     : <Package className="w-16 h-16 text-gray-300" strokeWidth={1.5} />
                   }
                   {imgs.length > 1 && <>
