@@ -42,7 +42,6 @@ export default function WholesalerPage() {
   const [imagePreview, setImagePreview] = useState('')
   const [extraImages, setExtraImages] = useState<string[]>([])       // existing extra URLs
   const [newExtraFiles, setNewExtraFiles] = useState<File[]>([])      // new files to upload
-  const extraImgRef = useRef<HTMLInputElement>(null)
   const [newCatName, setNewCatName] = useState('')
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -51,7 +50,6 @@ export default function WholesalerPage() {
   const [toast, setToast] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const u = store.getCurrentUser()
@@ -120,16 +118,20 @@ export default function WholesalerPage() {
     setImagePreview(p.image || ''); setExtraImages(p.images || []); setNewExtraFiles([]); setShowProductForm(true)
   }
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) { alert('图片不能超过 2MB'); return }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const base64 = ev.target?.result as string
-      setImagePreview(base64); setForm(f => ({ ...f, image: base64 }))
-    }
-    reader.readAsDataURL(file)
+    try {
+      const { compressImage } = await import('@/lib/imageUtils')
+      const compressed = await compressImage(file)
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const base64 = ev.target?.result as string
+        setImagePreview(base64); setForm(f => ({ ...f, image: base64 }))
+      }
+      reader.readAsDataURL(compressed)
+    } catch (err: any) { showToast('图片处理失败: ' + (err?.message || '未知错误')) }
   }
 
   async function saveProduct() {
@@ -469,13 +471,13 @@ export default function WholesalerPage() {
                     <button onClick={() => { setImagePreview(''); setForm(f => ({ ...f, image: '' })) }} className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"><X className="w-3.5 h-3.5" strokeWidth={2} /></button>
                   </div>
                 ) : (
-                  <div onClick={() => fileInputRef.current?.click()} className="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
-                    <Camera className="w-7 h-7 text-gray-300 mb-1.5" strokeWidth={1.5} />
+                  <label className="w-full h-32 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
+                    <Camera className="w-7 h-7 text-gray-400 mb-1.5" strokeWidth={1.5} />
                     <span className="text-sm text-gray-600">点击上传图片</span>
-                    <span className="text-xs text-gray-500">JPG / PNG，最大 2MB</span>
-                  </div>
+                    <span className="text-xs text-gray-500">JPG / PNG，大图自动压缩</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                  </label>
                 )}
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
               </div>
 
               {/* 多图：额外图片 */}
