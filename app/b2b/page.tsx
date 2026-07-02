@@ -491,7 +491,7 @@ export default function B2BPage() {
               const imgs = [detailProduct.image, ...(detailProduct.images || [])].filter(Boolean) as string[]
               const idx = Math.min(detailImgIdx, imgs.length - 1)
               return (
-                <div className="relative bg-gray-50 flex items-center justify-center shrink-0 h-[300px] sm:h-[420px] overflow-hidden">
+                <div className="relative z-0 bg-gray-50 flex items-center justify-center shrink-0 h-[300px] sm:h-[420px] overflow-hidden">
                   {imgs.length > 0
                     ? <img src={imgs[idx]} alt={detailProduct.name} className="max-w-full max-h-full object-contain" />
                     : <Package className="w-16 h-16 text-gray-300" strokeWidth={1.5} />
@@ -510,7 +510,7 @@ export default function B2BPage() {
                 </div>
               )
             })()}
-            <div className="p-5 overflow-y-auto">
+            <div className="p-5 overflow-y-auto relative z-10 bg-white">
               <div className="font-bold text-gray-800 text-xl mb-1">{detailProduct.name}</div>
               {detailProduct.subcategory && <span className="inline-block text-xs bg-orange-50 text-orange-500 px-2 py-0.5 rounded mb-3">{detailProduct.subcategory}</span>}
               <div className="text-3xl font-bold text-orange-500 mb-4">€{detailProduct.price.toFixed(2)}</div>
